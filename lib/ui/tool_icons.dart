@@ -2,10 +2,22 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../model/artwork.dart';
 import 'art_renderer.dart';
 
 /// Boyama araçları. Her biri yazısız, seçili renkte çizilen bir simgeyle gösterilir.
-enum Tool { fill, pencil, marker, crayon, watercolor, rainbow, eraser }
+enum Tool {
+  fill,
+  pencil,
+  marker,
+  crayon,
+  watercolor,
+  rainbow,
+  glitter,
+  stars,
+  sticker,
+  eraser,
+}
 
 /// Araç simgesi: seçili renkle boyanmış küçük bir kalem, pastel, silgi vb.
 class ToolIcon extends StatelessWidget {
@@ -137,6 +149,36 @@ class _ToolPainter extends CustomPainter {
               ..color = colors[i],
           );
         }
+      case Tool.glitter:
+        canvas.rotate(math.pi / 4);
+        _sparkle(canvas, const Offset(-8, 6), 26, color);
+        _sparkle(
+          canvas,
+          const Offset(24, -22),
+          14,
+          Color.lerp(color, Colors.white, 0.5)!,
+        );
+        _sparkle(canvas, const Offset(-28, -26), 10, color);
+        _sparkle(
+          canvas,
+          const Offset(26, 26),
+          9,
+          Color.lerp(color, Colors.white, 0.5)!,
+        );
+      case Tool.stars:
+        canvas.rotate(math.pi / 4);
+        for (final (o, r) in const [
+          (Offset(-22, 18), 16.0),
+          (Offset(0, -2), 14.0),
+          (Offset(24, -22), 12.0),
+        ]) {
+          final p = starPath(o, r);
+          canvas.drawPath(p, fill(color));
+          canvas.drawPath(p, line..strokeWidth = 3.5);
+        }
+      case Tool.sticker:
+        canvas.rotate(math.pi / 4);
+        paintSticker(canvas, Sticker.smiley, color, Offset.zero, 84);
       case Tool.eraser:
         final pink = RRect.fromLTRBR(-34, -16, 6, 16, const Radius.circular(6));
         final sleeve = RRect.fromLTRBR(
@@ -155,9 +197,58 @@ class _ToolPainter extends CustomPainter {
     }
   }
 
+  void _sparkle(Canvas canvas, Offset c, double r, Color color) {
+    final p = Path()
+      ..moveTo(c.dx, c.dy - r)
+      ..quadraticBezierTo(c.dx, c.dy, c.dx + r, c.dy)
+      ..quadraticBezierTo(c.dx, c.dy, c.dx, c.dy + r)
+      ..quadraticBezierTo(c.dx, c.dy, c.dx - r, c.dy)
+      ..quadraticBezierTo(c.dx, c.dy, c.dx, c.dy - r)
+      ..close();
+    canvas.drawPath(p, Paint()..color = color);
+    canvas.drawPath(
+      p,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..strokeJoin = StrokeJoin.round
+        ..color = outlineColor,
+    );
+  }
+
   @override
   bool shouldRepaint(_ToolPainter old) =>
       old.tool != tool || old.color != color;
+}
+
+/// Çıkartma seçim düğmesindeki küçük resim.
+class StickerIcon extends StatelessWidget {
+  const StickerIcon({super.key, required this.sticker, required this.color});
+
+  final Sticker sticker;
+  final int color;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    painter: _StickerPainter(sticker, Color(color)),
+    size: Size.infinite,
+  );
+}
+
+class _StickerPainter extends CustomPainter {
+  _StickerPainter(this.sticker, this.color);
+  final Sticker sticker;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final d = math.min(size.width, size.height) * 0.78;
+    paintSticker(canvas, sticker, color, size.center(Offset.zero), d);
+  }
+
+  @override
+  bool shouldRepaint(_StickerPainter old) =>
+      old.sticker != sticker || old.color != color;
 }
 
 /// Kalınlık seçici: üç büyüklükte nokta.
@@ -168,16 +259,18 @@ class SizeDot extends StatelessWidget {
     required this.selected,
     required this.color,
     required this.onTap,
+    this.size = 48,
   });
 
   final int level;
+  final double size;
   final bool selected;
   final int color;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final dot = 10.0 + level * 9;
+    final dot = size * (0.2 + level * 0.19);
     final c = color == 0xFFFFFFFF ? const Color(0xFFBDBDBD) : Color(color);
     return Semantics(
       button: true,
@@ -187,8 +280,8 @@ class SizeDot extends StatelessWidget {
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: Container(
-          width: 48,
-          height: 48,
+          width: size,
+          height: size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: selected ? const Color(0xFFFFD54F) : Colors.white,

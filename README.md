@@ -6,12 +6,17 @@ Küçük çocuklar için Android boyama uygulaması. Flutter ile yazıldı.
 - **Okuma gerektirmeyen arayüz:** sadece büyük resimler, büyük renkli düğmeler ve simgeler.
 - **Dokun ve boya:** bir alana dokununca seçili renkle dolar.
 - **Çizim araçları:** kalem, fırça, pastel boya (tanecikli), sulu boya (yarı saydam, üst üste koyulaşır),
-  gökkuşağı fırçası ve silgi. Araç simgeleri seçili renkte görünür. Üç fırça kalınlığı var.
+  gökkuşağı fırçası, simli fırça, yıldız fırçası, çıkartmalar (yıldız, kalp, gülen yüz, çiçek, ay) ve silgi.
+  Araç simgeleri seçili renkte görünür. Üç fırça kalınlığı, 16 renk.
   Sadece ilk parmak sayılır, avuç içi çizimi bozmaz.
+- **Geniş çizim alanı:** ekranda kalan tüm alan çizim alanıdır; resmin çevresi de boyanabilir.
+- **Müzik ve sesler:** bu proje için üretilmiş özgün, neşeli bir müzik döngüsü ile boyama/çıkartma sesleri
+  (`tool/make_audio.py`). Ebeveyn panelinden ayrı ayrı kapatılabilir.
 - **Geri al ve temizle:** temizleme de geri alınabilir, yanlışlıkla basılırsa sorun olmaz.
-- **9 özgün resim:** güneş, kedi, balık, elma, balonlar, çiçek, kelebek, araba, ev. Hepsi bu proje için basit şekillerle çizildi, bilinen bir karakter yok.
+- **18 özgün resim:** güneş, kedi, balık, elma, balonlar, çiçek, kelebek, araba, ev, tavşan, kuş,
+  kaplumbağa, tekne, uçak, ağaç, dondurma, pasta, roket. Hepsi bu proje için basit şekillerle çizildi, bilinen bir karakter yok.
 - **Otomatik kayıt:** boyamalar cihazda saklanır, ana ekranda boyanmış halleri görünür.
-- **Ebeveyn kilidi:** ana ekranın sağ üstündeki soluk kilidi 3 saniye basılı tutunca panel açılır (titreşim ayarı, tüm boyamaları silme, uygulamadan çıkış). Ana ekranda geri tuşu uygulamadan çıkarmaz.
+- **Ebeveyn kilidi:** ana ekranın sağ üstündeki soluk kilidi 3 saniye basılı tutunca panel açılır (müzik, ses efektleri ve titreşim ayarları, tüm boyamaları silme, uygulamadan çıkış). Ana ekranda geri tuşu uygulamadan çıkarmaz.
 - **Güvenli:** internet izni yok, reklam yok, veri toplama yok. Tam ekran çalışır, ekran kararmaz.
 
 ## APK'yı indirmek

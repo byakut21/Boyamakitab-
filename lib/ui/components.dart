@@ -7,11 +7,12 @@ class AppColors {
   static const toolSelected = Color(0xFFFFD54F);
 }
 
-/// Çocukların okumadan anlayacağı 12 canlı renk.
+/// Çocukların okumadan anlayacağı 16 canlı renk, iki sıra halinde.
 const List<int> paletteColors = [
   0xFFE53935, 0xFFFB8C00, 0xFFFDD835, 0xFF7CB342, //
   0xFF43A047, 0xFF00ACC1, 0xFF1E88E5, 0xFF8E24AA, //
-  0xFFEC407A, 0xFF8D6E63, 0xFF212121, 0xFFFFFFFF, //
+  0xFFEC407A, 0xFFF8BBD0, 0xFFFFCC80, 0xFF8D6E63, //
+  0xFF81D4FA, 0xFF9E9E9E, 0xFF212121, 0xFFFFFFFF, //
 ];
 
 /// Büyük, yuvarlak, sadece simgeli düğme.
@@ -74,11 +75,13 @@ class _ColorDot extends StatelessWidget {
   const _ColorDot({
     required this.color,
     required this.selected,
+    required this.size,
     required this.onTap,
   });
 
   final int color;
   final bool selected;
+  final double size;
   final VoidCallback onTap;
 
   @override
@@ -87,18 +90,18 @@ class _ColorDot extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: AnimatedScale(
-        scale: selected ? 1.2 : 1,
+        scale: selected ? 1.18 : 1,
         duration: const Duration(milliseconds: 300),
         curve: Curves.elasticOut,
         child: Container(
-          width: 46,
-          height: 46,
+          width: size,
+          height: size,
           decoration: BoxDecoration(
             color: Color(color),
             shape: BoxShape.circle,
             border: Border.all(
               color: AppColors.outline,
-              width: selected ? 5 : 2,
+              width: selected ? 4.5 : 2,
             ),
             boxShadow: [
               BoxShadow(
@@ -115,6 +118,7 @@ class _ColorDot extends StatelessWidget {
 }
 
 /// Renk paleti: dikey ekranda alt alta iki satır, yatay ekranda yan yana iki sütun.
+/// Noktalar ekrana sığacak kadar büyük çizilir (en fazla 48).
 class PaletteBar extends StatelessWidget {
   const PaletteBar({
     super.key,
@@ -127,33 +131,59 @@ class PaletteBar extends StatelessWidget {
   final ValueChanged<int> onSelect;
   final bool vertical;
 
+  static const _gap = 7.0;
+
   @override
   Widget build(BuildContext context) {
-    final groups = [paletteColors.sublist(0, 6), paletteColors.sublist(6)];
-    Widget group(List<int> colors) {
-      final dots = [
-        for (final c in colors)
-          _ColorDot(
-            color: c,
-            selected: c == selected,
-            onTap: () => onSelect(c),
-          ),
-      ];
-      return vertical
-          ? Column(mainAxisSize: MainAxisSize.min, spacing: 10, children: dots)
-          : Row(mainAxisSize: MainAxisSize.min, spacing: 8, children: dots);
-    }
+    final half = paletteColors.length ~/ 2;
+    final groups = [
+      paletteColors.sublist(0, half),
+      paletteColors.sublist(half),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final available = vertical
+            ? constraints.maxHeight
+            : constraints.maxWidth;
+        final size = ((available - _gap * (half - 1)) / half - 3).clamp(
+          26.0,
+          48.0,
+        );
+        Widget group(List<int> colors) {
+          final dots = [
+            for (final c in colors)
+              _ColorDot(
+                color: c,
+                selected: c == selected,
+                size: size,
+                onTap: () => onSelect(c),
+              ),
+          ];
+          return vertical
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: _gap,
+                  children: dots,
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: _gap,
+                  children: dots,
+                );
+        }
 
-    return vertical
-        ? Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: 10,
-            children: groups.map(group).toList(),
-          )
-        : Column(
-            mainAxisSize: MainAxisSize.min,
-            spacing: 12,
-            children: groups.map(group).toList(),
-          );
+        return vertical
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: _gap,
+                children: groups.map(group).toList(),
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                spacing: _gap,
+                children: groups.map(group).toList(),
+              );
+      },
+    );
   }
 }

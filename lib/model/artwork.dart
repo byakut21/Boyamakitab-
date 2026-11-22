@@ -23,6 +23,12 @@ enum BrushKind {
   /// Çizdikçe renk değiştiren gökkuşağı fırçası.
   rainbow(36),
 
+  /// Işıl ışıl parlayan simli fırça.
+  glitter(40),
+
+  /// Çizgi boyunca minik yıldızlar bırakan desenli fırça.
+  stars(34),
+
   /// Silgi: boyayı da çizgiyi de siler, çizgiler (konturlar) kalır.
   eraser(56);
 
@@ -57,6 +63,28 @@ class FillOp extends DrawOp {
   Map<String, Object> toJson() => {'t': 'f', 'r': region, 'c': color};
 }
 
+/// Çıkartmalar: dokununca seçili renkte yapıştırılır.
+enum Sticker { star, heart, smiley, flower, moon }
+
+/// Bir çıkartma yapıştırır.
+class StampOp extends DrawOp {
+  const StampOp(this.sticker, this.color, this.center, this.size);
+  final Sticker sticker;
+  final int color;
+  final Offset center;
+  final double size;
+
+  @override
+  Map<String, Object> toJson() => {
+    't': 'k',
+    's': sticker.name,
+    'c': color,
+    'x': center.dx.roundToDouble(),
+    'y': center.dy.roundToDouble(),
+    'z': size,
+  };
+}
+
 /// Resmi tamamen temizler; önceki işlemler geri alma için listede kalır.
 class ClearOp extends DrawOp {
   const ClearOp();
@@ -79,6 +107,12 @@ class BrushStroke extends DrawOp {
   /// Pastel boya taneleri: [x, y, x, y, ...]. Aynı çizgi her seferinde aynı görünsün
   /// diye sabit tohumlu rastgele sayılarla bir kez üretilir.
   late final Float32List crayonGrain = buildCrayonGrain(points, width);
+
+  /// Simli fırçanın parıltıları; renk tonlarına göre üç grup.
+  late final List<Float32List> glitterGrain = buildGlitter(points, width);
+
+  /// Yıldız fırçasının yıldızlarının yerleri ve açıları: [x, y, açı, ...].
+  late final Float32List starStamps = buildStarStamps(points, width);
 
   @override
   Map<String, Object> toJson() => {
@@ -157,7 +191,11 @@ Path buildStrokePath(List<Offset> pts) {
 }
 
 /// Çizgi boyunca, kalınlığın içine rastgele serpiştirilmiş taneler.
-Float32List buildCrayonGrain(List<Offset> pts, double width) {
+Float32List buildCrayonGrain(
+  List<Offset> pts,
+  double width, {
+  int density = 3,
+}) {
   if (pts.isEmpty) return Float32List(0);
   final seed =
       pts.first.dx.round() * 7919 + pts.first.dy.round() * 104729 + pts.length;
@@ -184,9 +222,46 @@ Float32List buildCrayonGrain(List<Offset> pts, double width) {
       final len = (b - a).distance;
       final n = math.max(1, (len / step).ceil());
       for (var j = 0; j < n; j++) {
-        sprinkle(Offset.lerp(a, b, j / n)!, 3);
+        sprinkle(Offset.lerp(a, b, j / n)!, density);
       }
     }
+  }
+  return Float32List.fromList(out);
+}
+
+/// Simli fırça: çizginin biraz dışına da taşan, üç ayrı tonda parıltılar.
+List<Float32List> buildGlitter(List<Offset> pts, double width) {
+  final grain = buildCrayonGrain(pts, width * 1.15, density: 2);
+  final groups = [<double>[], <double>[], <double>[]];
+  for (var i = 0; i + 1 < grain.length; i += 2) {
+    groups[(i ~/ 2) % 3]
+      ..add(grain[i])
+      ..add(grain[i + 1]);
+  }
+  return [for (final g in groups) Float32List.fromList(g)];
+}
+
+/// Çizgi boyunca eşit aralıklarla yıldız yerleri.
+Float32List buildStarStamps(List<Offset> pts, double width) {
+  if (pts.isEmpty) return Float32List(0);
+  final out = <double>[pts.first.dx, pts.first.dy, 0];
+  final spacing = width * 1.5;
+  var carried = 0.0;
+  var n = 1;
+  for (var i = 1; i < pts.length; i++) {
+    final a = pts[i - 1];
+    final b = pts[i];
+    final len = (b - a).distance;
+    var t = spacing - carried;
+    while (t <= len) {
+      final p = Offset.lerp(a, b, t / len)!;
+      out
+        ..add(p.dx)
+        ..add(p.dy)
+        ..add((n++ * 0.7) % (2 * math.pi / 5));
+      t += spacing;
+    }
+    carried = len - (t - spacing);
   }
   return Float32List.fromList(out);
 }

@@ -5,6 +5,45 @@ import 'dart:ui';
 const double canvasSize = 1000;
 const double outlineWidth = 12;
 
+/// Resmin kendi karesi.
+const Rect pictureArea = Rect.fromLTWH(0, 0, canvasSize, canvasSize);
+
+/// Boyama ekranında resim karesinin dışında kalan boşluk da çizim alanıdır;
+/// arka plan bu kadar geniş tanımlanır ki dokununca orası da boyansın.
+const Rect worldRect = Rect.fromLTRB(-3000, -3000, 4000, 4000);
+
+/// Ekrandaki bir alana resmin nasıl yerleştiğini hesaplar: resim karesi alana sığan
+/// en büyük boyda ortalanır, kalan boşluk resim koordinatlarında [area] olur.
+class PictureLayout {
+  factory PictureLayout(Size size) {
+    final scale = math.min(size.width, size.height) / canvasSize;
+    final offset = Offset(
+      (size.width - canvasSize * scale) / 2,
+      (size.height - canvasSize * scale) / 2,
+    );
+    return PictureLayout._(
+      scale,
+      offset,
+      Rect.fromLTWH(
+        -offset.dx / scale,
+        -offset.dy / scale,
+        size.width / scale,
+        size.height / scale,
+      ),
+    );
+  }
+
+  const PictureLayout._(this.scale, this.offset, this.area);
+
+  final double scale;
+  final Offset offset;
+
+  /// Ekranın tamamı, resim koordinatlarında.
+  final Rect area;
+
+  Offset toPicture(Offset local) => (local - offset) / scale;
+}
+
 /// Boyanabilir bir resim.
 ///
 /// [regions] dokununca boyanan kapalı alanlardır; listede sonra gelen alan öncekilerin
@@ -85,10 +124,7 @@ class PictureBuilder {
   }
 
   /// Arka planın tamamı da boyanabilir bir alandır (gökyüzü, deniz...).
-  void background() => _add(
-    Path()..addRect(const Rect.fromLTWH(0, 0, canvasSize, canvasSize)),
-    outline: false,
-  );
+  void background() => _add(Path()..addRect(worldRect), outline: false);
 
   void circle(double cx, double cy, double r) => _add(circlePath(cx, cy, r));
   void oval(double l, double t, double r, double b) =>

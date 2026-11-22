@@ -37,6 +37,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   shared_preferences: ^2.5.6
   wakelock_plus: ^1.8.2
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:
@@ -59,6 +60,10 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # Uygulamanın kendi ürettiği müzik ve ses efektleri (tool/make_audio.py).
+  assets:
+    - assets/audio/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

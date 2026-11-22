@@ -6,12 +6,20 @@ class ParentPanel extends StatefulWidget {
     super.key,
     required this.haptics,
     required this.onHapticsChanged,
+    required this.music,
+    required this.onMusicChanged,
+    required this.sounds,
+    required this.onSoundsChanged,
     required this.onClearAll,
     required this.onExit,
   });
 
   final bool haptics;
   final ValueChanged<bool> onHapticsChanged;
+  final bool music;
+  final ValueChanged<bool> onMusicChanged;
+  final bool sounds;
+  final ValueChanged<bool> onSoundsChanged;
   final VoidCallback onClearAll;
   final VoidCallback onExit;
 
@@ -21,6 +29,8 @@ class ParentPanel extends StatefulWidget {
 
 class _ParentPanelState extends State<ParentPanel> {
   late bool haptics = widget.haptics;
+  late bool music = widget.music;
+  late bool sounds = widget.sounds;
   bool confirmClear = false;
   bool cleared = false;
 
@@ -33,8 +43,26 @@ class _ParentPanelState extends State<ParentPanel> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 16,
+          spacing: 8,
           children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Müzik'),
+              value: music,
+              onChanged: (v) {
+                setState(() => music = v);
+                widget.onMusicChanged(v);
+              },
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Ses efektleri'),
+              value: sounds,
+              onChanged: (v) {
+                setState(() => sounds = v);
+                widget.onSoundsChanged(v);
+              },
+            ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Dokununca titreşim'),

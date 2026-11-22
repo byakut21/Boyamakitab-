@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/widgets.dart';
 
 import '../model/artwork.dart';
@@ -9,8 +7,9 @@ import 'art_renderer.dart';
 
 /// Resmi, alana sığan en büyük kare olarak ortalayıp çizer.
 ///
-/// [live] verilirse (boyama ekranı) biten işlemler önbellekteki görüntüden, o an
-/// çizilen çizgi ise canlı çizilir. Verilmezse (ana ekran) [artwork] doğrudan çizilir.
+/// [live] verilirse (boyama ekranı) tüm alan çizim alanıdır: biten işlemler önbellekteki
+/// görüntüden, o an çizilen çizgi canlı çizilir. Verilmezse (ana ekran) sadece resim
+/// karesi ve [artwork] doğrudan çizilir.
 class PicturePainter extends CustomPainter {
   PicturePainter({
     required this.picture,
@@ -22,32 +21,29 @@ class PicturePainter extends CustomPainter {
   final Artwork artwork;
   final ColoringController? live;
 
-  static const _area = Rect.fromLTWH(0, 0, canvasSize, canvasSize);
-
   @override
   void paint(Canvas canvas, Size size) {
-    final scale = math.min(size.width, size.height) / canvasSize;
+    final layout = PictureLayout(size);
     canvas.save();
-    canvas.translate(
-      (size.width - canvasSize * scale) / 2,
-      (size.height - canvasSize * scale) / 2,
-    );
-    canvas.scale(scale);
-    canvas.clipRect(_area);
+    canvas.translate(layout.offset.dx, layout.offset.dy);
+    canvas.scale(layout.scale);
 
     final c = live;
     if (c == null) {
+      canvas.clipRect(pictureArea);
       ArtRenderer.paintArt(canvas, picture, artwork);
     } else {
-      final image = c.committedImage();
+      final area = layout.area;
+      canvas.clipRect(area);
+      final image = c.committedImage(area);
       canvas.drawImageRect(
         image,
         Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
-        _area,
+        area,
         Paint()..filterQuality = FilterQuality.medium,
       );
       final current = c.current;
-      if (current != null) ArtRenderer.paintStroke(canvas, current, live: true);
+      if (current != null) ArtRenderer.paintOp(canvas, current, live: true);
     }
     ArtRenderer.paintOutlines(canvas, picture);
     canvas.restore();

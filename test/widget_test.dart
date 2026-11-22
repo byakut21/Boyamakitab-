@@ -1,3 +1,4 @@
+import 'package:boyama_kitabi/data/app_audio.dart';
 import 'package:boyama_kitabi/data/storage.dart';
 import 'package:boyama_kitabi/main.dart';
 import 'package:boyama_kitabi/model/artwork.dart';
@@ -68,8 +69,12 @@ void main() {
         c.extendStroke(const Offset(60, 80));
         c.endStroke();
       }
+      c.placeSticker(const Offset(300, 300), Sticker.heart, 0xFFEC407A, 170);
       c.clearAll();
       final back = Artwork.fromJson(c.toArtwork().toJson(), fish);
+      final stamp = back.ops.whereType<StampOp>().single;
+      expect(stamp.sticker, Sticker.heart);
+      expect(stamp.center, const Offset(300, 300));
       expect(back.ops, hasLength(c.ops.length));
       final strokes = back.ops.whereType<BrushStroke>().toList();
       expect(strokes.map((s) => s.kind), BrushKind.values);
@@ -85,8 +90,8 @@ void main() {
     const spot = Offset(500, 650); // elmanın ortası
 
     Future<int> pixelAt(Offset p) async {
-      final image = c.committedImage();
-      final scale = ColoringController.cacheResolution / canvasSize;
+      final image = c.committedImage(pictureArea);
+      final scale = image.width / canvasSize;
       final data = await tester.runAsync(() => image.toByteData());
       final x = (p.dx * scale).round(), y = (p.dy * scale).round();
       final i = (y * image.width + x) * 4;
@@ -111,7 +116,9 @@ void main() {
   testWidgets('ana ekrandan bir resim açılıp boyanır', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final storage = await Storage.open();
-    await tester.pumpWidget(BoyamaApp(storage: storage));
+    await tester.pumpWidget(
+      BoyamaApp(storage: storage, audio: AppAudio.silent()),
+    );
 
     final cards = find.byWidgetPredicate(
       (w) => w is CustomPaint && w.painter is PicturePainter,

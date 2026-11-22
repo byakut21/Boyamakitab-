@@ -17,16 +17,21 @@ const _toolLabels = {
   Tool.crayon: 'Pastel boya',
   Tool.watercolor: 'Sulu boya',
   Tool.rainbow: 'Gökkuşağı fırçası',
+  Tool.glitter: 'Simli fırça',
+  Tool.stars: 'Yıldız fırçası',
+  Tool.sticker: 'Çıkartma',
   Tool.eraser: 'Silgi',
 };
 
 BrushKind? _brushFor(Tool tool) => switch (tool) {
-  Tool.fill => null,
+  Tool.fill || Tool.sticker => null,
   Tool.pencil => BrushKind.pencil,
   Tool.marker => BrushKind.marker,
   Tool.crayon => BrushKind.crayon,
   Tool.watercolor => BrushKind.watercolor,
   Tool.rainbow => BrushKind.rainbow,
+  Tool.glitter => BrushKind.glitter,
+  Tool.stars => BrushKind.stars,
   Tool.eraser => BrushKind.eraser,
 };
 
@@ -37,12 +42,20 @@ class ColoringScreen extends StatefulWidget {
     required this.initial,
     required this.haptics,
     required this.onChanged,
+    this.onPlop,
+    this.onSparkle,
   });
 
   final ColoringPicture picture;
   final Artwork initial;
   final bool haptics;
   final ValueChanged<Artwork> onChanged;
+
+  /// Boyamada çalınacak kısa ses.
+  final VoidCallback? onPlop;
+
+  /// Çıkartmada çalınacak ses.
+  final VoidCallback? onSparkle;
 
   @override
   State<ColoringScreen> createState() => _ColoringScreenState();
@@ -53,6 +66,9 @@ class _ColoringScreenState extends State<ColoringScreen> {
   Tool tool = Tool.fill;
   int color = paletteColors.first;
   int sizeLevel = 1;
+  Sticker sticker = Sticker.star;
+
+  static const stickerSize = 170.0;
 
   @override
   void dispose() {
@@ -80,7 +96,7 @@ class _ColoringScreenState extends State<ColoringScreen> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(6),
           child: LayoutBuilder(
             builder: (context, constraints) {
               final landscape = constraints.maxWidth > constraints.maxHeight;
@@ -94,7 +110,7 @@ class _ColoringScreenState extends State<ColoringScreen> {
                       label: 'Ana sayfa',
                       onTap: () => Navigator.of(context).pop(),
                       color: const Color(0xFF1E88E5),
-                      size: 56,
+                      size: 50,
                     ),
                     BigIconButton(
                       icon: Icons.undo_rounded,
@@ -103,7 +119,7 @@ class _ColoringScreenState extends State<ColoringScreen> {
                         if (controller.undo()) _changed();
                       },
                       enabled: controller.canUndo,
-                      size: 56,
+                      size: 50,
                     ),
                     BigIconButton(
                       icon: Icons.delete_rounded,
@@ -112,47 +128,32 @@ class _ColoringScreenState extends State<ColoringScreen> {
                         if (controller.clearAll()) _changed();
                       },
                       color: const Color(0xFF8D6E63),
-                      size: 56,
+                      size: 50,
                     ),
                   ];
-                  return landscape
-                      ? Column(
-                          mainAxisSize: MainAxisSize.min,
-                          spacing: 8,
-                          children: buttons,
-                        )
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          spacing: 8,
-                          children: buttons,
-                        );
-                },
-              );
-
-              // Kalınlık sadece çizim araçlarında anlamlı; boyamada soluk görünür.
-              final sizes = AnimatedOpacity(
-                opacity: tool == Tool.fill ? 0.3 : 1,
-                duration: const Duration(milliseconds: 200),
-                child: IgnorePointer(
-                  ignoring: tool == Tool.fill,
-                  child: Flex(
+                  return Flex(
                     direction: landscape ? Axis.vertical : Axis.horizontal,
                     mainAxisSize: MainAxisSize.min,
                     spacing: 6,
-                    children: [
-                      for (var i = 0; i < brushSizes.length; i++)
-                        SizeDot(
-                          level: i,
-                          selected: sizeLevel == i,
-                          color: color,
-                          onTap: () {
-                            setState(() => sizeLevel = i);
-                            _buzz();
-                          },
-                        ),
-                    ],
-                  ),
-                ),
+                    children: buttons,
+                  );
+                },
+              );
+
+              final selector = _OptionSelector(
+                vertical: landscape,
+                tool: tool,
+                color: color,
+                sizeLevel: sizeLevel,
+                sticker: sticker,
+                onSize: (i) {
+                  setState(() => sizeLevel = i);
+                  _buzz();
+                },
+                onSticker: (st) {
+                  setState(() => sticker = st);
+                  _buzz();
+                },
               );
 
               final tools = _ToolBar(
@@ -178,17 +179,16 @@ class _ColoringScreenState extends State<ColoringScreen> {
               );
 
               final canvas = Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Center(
-                    child: _DrawingCanvas(
-                      controller: controller,
-                      tool: tool,
-                      color: color,
-                      sizeFactor: brushSizes[sizeLevel],
-                      onAction: _changed,
-                    ),
-                  ),
+                child: _DrawingCanvas(
+                  controller: controller,
+                  tool: tool,
+                  color: color,
+                  sizeFactor: brushSizes[sizeLevel],
+                  sticker: sticker,
+                  stickerSize: stickerSize * brushSizes[sizeLevel],
+                  onAction: _changed,
+                  onPlop: widget.onPlop,
+                  onSparkle: widget.onSparkle,
                 ),
               );
 
@@ -197,8 +197,11 @@ class _ColoringScreenState extends State<ColoringScreen> {
                   spacing: 8,
                   children: [
                     Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [actions, sizes],
+                      spacing: 10,
+                      children: [
+                        actions,
+                        Expanded(child: selector),
+                      ],
                     ),
                     tools,
                     canvas,
@@ -209,14 +212,19 @@ class _ColoringScreenState extends State<ColoringScreen> {
               return Column(
                 spacing: 8,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [actions, sizes],
+                  SizedBox(
+                    height: 54,
+                    child: Row(
+                      spacing: 8,
+                      children: [
+                        actions,
+                        Expanded(child: selector),
+                      ],
+                    ),
                   ),
                   canvas,
                   tools,
                   palette,
-                  const SizedBox(height: 4),
                 ],
               );
             },
@@ -227,7 +235,86 @@ class _ColoringScreenState extends State<ColoringScreen> {
   }
 }
 
-/// Yedi araç: dikey ekranda tek satır, yatay ekranda tek sütun. Düğme boyutu
+/// Kalınlık seçimi; çıkartma aracında ise hangi çıkartmanın yapıştırılacağı.
+class _OptionSelector extends StatelessWidget {
+  const _OptionSelector({
+    required this.vertical,
+    required this.tool,
+    required this.color,
+    required this.sizeLevel,
+    required this.sticker,
+    required this.onSize,
+    required this.onSticker,
+  });
+
+  final bool vertical;
+  final Tool tool;
+  final int color;
+  final int sizeLevel;
+  final Sticker sticker;
+  final ValueChanged<int> onSize;
+  final ValueChanged<Sticker> onSticker;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 6.0;
+        final count = tool == Tool.sticker
+            ? Sticker.values.length
+            : brushSizes.length;
+        final available = vertical
+            ? constraints.maxHeight
+            : constraints.maxWidth;
+        final size = ((available - gap * (count - 1)) / count - 4).clamp(
+          28.0,
+          48.0,
+        );
+        final children = tool == Tool.sticker
+            ? [
+                for (final st in Sticker.values)
+                  BigIconButton(
+                    icon: Icons.circle,
+                    label: 'Çıkartma',
+                    selected: st == sticker,
+                    size: size,
+                    onTap: () => onSticker(st),
+                    child: StickerIcon(sticker: st, color: color),
+                  ),
+              ]
+            : [
+                for (var i = 0; i < brushSizes.length; i++)
+                  SizeDot(
+                    level: i,
+                    selected: sizeLevel == i,
+                    color: color,
+                    size: size,
+                    onTap: () => onSize(i),
+                  ),
+              ];
+        // Kalınlık boyamada anlamsız; soluk gösterilir.
+        return AnimatedOpacity(
+          opacity: tool == Tool.fill ? 0.3 : 1,
+          duration: const Duration(milliseconds: 200),
+          child: IgnorePointer(
+            ignoring: tool == Tool.fill,
+            child: Align(
+              alignment: vertical ? Alignment.center : Alignment.centerRight,
+              child: Flex(
+                direction: vertical ? Axis.vertical : Axis.horizontal,
+                mainAxisSize: MainAxisSize.min,
+                spacing: gap,
+                children: children,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// On araç: dikey ekranda iki satır, yatay ekranda iki sütun. Düğme boyutu
 /// ekrana sığacak şekilde ayarlanır.
 class _ToolBar extends StatelessWidget {
   const _ToolBar({
@@ -246,54 +333,70 @@ class _ToolBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        const gap = 6.0;
-        final n = Tool.values.length;
+        const gap = 8.0;
+        const perLine = 5;
         final available = vertical
             ? constraints.maxHeight
             : constraints.maxWidth;
-        final size = math.min(60.0, (available - gap * (n - 1)) / n - 2);
-        final buttons = [
-          for (final t in Tool.values)
-            BigIconButton(
-              icon: Icons.circle,
-              label: _toolLabels[t]!,
-              selected: t == selected,
-              onTap: () => onSelect(t),
-              size: size,
-              child: ToolIcon(tool: t, color: color),
+        final size = math.min(
+          60.0,
+          (available - gap * (perLine - 1)) / perLine - 4,
+        );
+        Widget button(Tool t) => BigIconButton(
+          icon: Icons.circle,
+          label: _toolLabels[t]!,
+          selected: t == selected,
+          onTap: () => onSelect(t),
+          size: size,
+          child: ToolIcon(tool: t, color: color),
+        );
+        final lines = [
+          for (var i = 0; i < Tool.values.length; i += perLine)
+            Flex(
+              direction: vertical ? Axis.vertical : Axis.horizontal,
+              mainAxisSize: MainAxisSize.min,
+              spacing: gap,
+              children: [
+                for (final t in Tool.values.skip(i).take(perLine)) button(t),
+              ],
             ),
         ];
-        return vertical
-            ? Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                spacing: gap,
-                children: buttons,
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                spacing: gap,
-                children: buttons,
-              );
+        return Flex(
+          direction: vertical ? Axis.horizontal : Axis.vertical,
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          spacing: gap,
+          children: lines,
+        );
       },
     );
   }
 }
 
-/// Boyama alanı: kare, beyaz, köşeleri yuvarlak. Dokunuşlar resim koordinatlarına çevrilir.
+/// Boyama alanı: ekranda kalan alanın tamamı. Resim ortada en büyük boyda durur,
+/// çevresindeki boşluk da boyanıp çizilebilir.
 class _DrawingCanvas extends StatefulWidget {
   const _DrawingCanvas({
     required this.controller,
     required this.tool,
     required this.color,
     required this.sizeFactor,
+    required this.sticker,
+    required this.stickerSize,
     required this.onAction,
+    this.onPlop,
+    this.onSparkle,
   });
 
   final ColoringController controller;
   final Tool tool;
   final int color;
   final double sizeFactor;
+  final Sticker sticker;
+  final double stickerSize;
   final VoidCallback onAction;
+  final VoidCallback? onPlop;
+  final VoidCallback? onSparkle;
 
   @override
   State<_DrawingCanvas> createState() => _DrawingCanvasState();
@@ -303,75 +406,79 @@ class _DrawingCanvasState extends State<_DrawingCanvas> {
   int? _pointer;
   Offset? _downAt;
 
-  Offset _toPicture(Offset local, Size size) =>
-      local / (size.width / canvasSize);
+  void _tap(PictureLayout layout, Offset local) {
+    final c = widget.controller;
+    final p = layout.toPicture(local);
+    if (widget.tool == Tool.sticker) {
+      c.placeSticker(p, widget.sticker, widget.color, widget.stickerSize);
+      widget.onSparkle?.call();
+    } else if (c.fillAt(p, widget.color)) {
+      widget.onPlop?.call();
+    } else {
+      return;
+    }
+    widget.onAction();
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
-    return AspectRatio(
-      aspectRatio: 1,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 10,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final size = constraints.biggest;
-              // Ham dokunma olayları: sadece ilk parmak dikkate alınır, avuç içi
-              // ya da ikinci parmak çizimi bozmaz.
-              return Listener(
-                behavior: HitTestBehavior.opaque,
-                onPointerDown: (e) {
-                  if (_pointer != null) return;
-                  _pointer = e.pointer;
-                  _downAt = e.localPosition;
-                  final brush = _brushFor(widget.tool);
-                  if (brush != null) {
-                    c.startStroke(
-                      _toPicture(e.localPosition, size),
-                      brush,
-                      widget.color,
-                      brush.baseWidth * widget.sizeFactor,
-                    );
-                  }
-                },
-                onPointerMove: (e) {
-                  if (e.pointer != _pointer) return;
-                  c.extendStroke(_toPicture(e.localPosition, size));
-                },
-                onPointerUp: (e) {
-                  if (e.pointer != _pointer) return;
-                  _pointer = null;
-                  if (c.current != null) {
-                    if (c.endStroke()) widget.onAction();
-                  } else if ((e.localPosition - _downAt!).distance < 40 &&
-                      c.fillAt(_toPicture(_downAt!, size), widget.color)) {
-                    widget.onAction();
-                  }
-                },
-                onPointerCancel: (e) {
-                  if (e.pointer != _pointer) return;
-                  _pointer = null;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3)),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final size = constraints.biggest;
+            final layout = PictureLayout(size);
+            // Ham dokunma olayları: sadece ilk parmak dikkate alınır, avuç içi
+            // ya da ikinci parmak çizimi bozmaz.
+            return Listener(
+              behavior: HitTestBehavior.opaque,
+              onPointerDown: (e) {
+                if (_pointer != null) return;
+                _pointer = e.pointer;
+                _downAt = e.localPosition;
+                final brush = _brushFor(widget.tool);
+                if (brush != null) {
+                  c.startStroke(
+                    layout.toPicture(e.localPosition),
+                    brush,
+                    widget.color,
+                    brush.baseWidth * widget.sizeFactor,
+                  );
+                }
+              },
+              onPointerMove: (e) {
+                if (e.pointer != _pointer) return;
+                c.extendStroke(layout.toPicture(e.localPosition));
+              },
+              onPointerUp: (e) {
+                if (e.pointer != _pointer) return;
+                _pointer = null;
+                if (c.current != null) {
                   if (c.endStroke()) widget.onAction();
-                },
-                child: CustomPaint(
-                  size: size,
-                  painter: PicturePainter(picture: c.picture, live: c),
-                ),
-              );
-            },
-          ),
+                } else if ((e.localPosition - _downAt!).distance < 40) {
+                  _tap(layout, _downAt!);
+                }
+              },
+              onPointerCancel: (e) {
+                if (e.pointer != _pointer) return;
+                _pointer = null;
+                if (c.endStroke()) widget.onAction();
+              },
+              child: CustomPaint(
+                size: size,
+                painter: PicturePainter(picture: c.picture, live: c),
+              ),
+            );
+          },
         ),
       ),
     );

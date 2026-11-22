@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -12,8 +13,9 @@ class ColoringController extends ChangeNotifier {
   ColoringController(this.picture, Artwork initial)
     : ops = List.of(initial.ops);
 
-  /// Biten işlemlerin önbelleğe alınan görüntüsünün çözünürlüğü.
-  static const cacheResolution = 1400;
+  /// Önbellek görüntüsünde resim biriminin piksel karşılığı (en fazla).
+  static const cachePixelsPerUnit = 1.4;
+  static const _maxCachePixels = 3000000;
   static const _minStep = 3.0;
 
   final ColoringPicture picture;
@@ -23,28 +25,52 @@ class ColoringController extends ChangeNotifier {
   BrushStroke? current;
 
   ui.Image? _cache;
+  Rect? _cacheArea;
 
   bool get canUndo => ops.isNotEmpty;
 
   /// Biten işlemlerin görüntüsü. Her çizimde baştan çizmek yerine bir kez
   /// resim olarak hazırlanır; böylece yüzlerce çizgide bile akıcı kalır.
-  ui.Image committedImage() {
+  ///
+  /// [area], resim koordinatlarında ekranın tamamıdır.
+  ui.Image committedImage(Rect area) {
     final cached = _cache;
-    if (cached != null) return cached;
+    if (cached != null && _cacheArea == area) return cached;
+    _dropCache();
+    final k = math.min(
+      cachePixelsPerUnit,
+      math.sqrt(_maxCachePixels / (area.width * area.height)),
+    );
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    canvas.scale(cacheResolution / canvasSize);
-    ArtRenderer.paintArt(canvas, picture, Artwork(ops));
+    canvas.scale(k);
+    canvas.translate(-area.left, -area.top);
+    ArtRenderer.paintArt(canvas, picture, Artwork(ops), area: area);
     final pic = recorder.endRecording();
-    final image = pic.toImageSync(cacheResolution, cacheResolution);
+    final image = pic.toImageSync(
+      math.max(1, (area.width * k).round()),
+      math.max(1, (area.height * k).round()),
+    );
     pic.dispose();
+    _cacheArea = area;
     return _cache = image;
   }
 
-  void _changed() {
+  void _dropCache() {
     _cache?.dispose();
     _cache = null;
+    _cacheArea = null;
+  }
+
+  void _changed() {
+    _dropCache();
     notifyListeners();
+  }
+
+  /// Dokunulan yere çıkartma yapıştırır.
+  void placeSticker(Offset p, Sticker sticker, int color, double size) {
+    ops.add(StampOp(sticker, color, p, size));
+    _changed();
   }
 
   /// Dokunulan alanı boyar. Bir şey değiştiyse true döner.
@@ -108,7 +134,7 @@ class ColoringController extends ChangeNotifier {
 
   @override
   void dispose() {
-    _cache?.dispose();
+    _dropCache();
     super.dispose();
   }
 }

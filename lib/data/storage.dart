@@ -45,4 +45,10 @@ class Storage {
 
   bool get haptics => _prefs.getBool('haptics') ?? true;
   set haptics(bool value) => _prefs.setBool('haptics', value);
+
+  bool get music => _prefs.getBool('music') ?? true;
+  set music(bool value) => _prefs.setBool('music', value);
+
+  bool get sounds => _prefs.getBool('sounds') ?? true;
+  set sounds(bool value) => _prefs.setBool('sounds', value);
 }
