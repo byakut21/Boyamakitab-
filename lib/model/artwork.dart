@@ -49,6 +49,12 @@ sealed class DrawOp {
     'f' => FillOp(json['r'] as int, json['c'] as int),
     's' => BrushStroke.fromJson(json),
     'x' => const ClearOp(),
+    'k' => StampOp(
+      Sticker.values.byName(json['s'] as String),
+      json['c'] as int,
+      Offset((json['x'] as num).toDouble(), (json['y'] as num).toDouble()),
+      (json['z'] as num).toDouble(),
+    ),
     _ => throw FormatException('Bilinmeyen işlem: ${json['t']}'),
   };
 }
