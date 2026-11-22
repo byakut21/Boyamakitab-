@@ -41,6 +41,16 @@ class ColoringPicture {
     return covers;
   }
 
+  /// Her alanın görünen kısmı: üstünde duran alanlar çıkarılmış hali. Boyama
+  /// işlemleri zaman sırasıyla çizildiği için bir alanı boyamak, önündeki
+  /// parçaların (göz, burun...) üstüne taşmamalıdır.
+  late final List<Path> visibleRegions = [
+    for (var i = 0; i < regions.length; i++)
+      coverAbove[i] == null
+          ? regions[i]
+          : Path.combine(PathOperation.difference, regions[i], coverAbove[i]!),
+  ];
+
   /// Verilen noktadaki en üstteki alanın sırası, yoksa -1.
   int regionAt(Offset p) {
     for (var i = regions.length - 1; i >= 0; i--) {

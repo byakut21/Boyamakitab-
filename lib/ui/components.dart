@@ -24,6 +24,8 @@ class BigIconButton extends StatelessWidget {
     this.selected = false,
     this.enabled = true,
     this.color = AppColors.outline,
+    this.size = 64,
+    this.child,
   });
 
   final IconData icon;
@@ -32,6 +34,10 @@ class BigIconButton extends StatelessWidget {
   final bool selected;
   final bool enabled;
   final Color color;
+  final double size;
+
+  /// Simge yerine özel çizilmiş bir içerik (ör. araç önizlemesi).
+  final Widget? child;
 
   @override
   Widget build(BuildContext context) {
@@ -52,9 +58,9 @@ class BigIconButton extends StatelessWidget {
               customBorder: const CircleBorder(),
               onTap: enabled ? onTap : null,
               child: SizedBox(
-                width: 64,
-                height: 64,
-                child: Icon(icon, size: 38, color: color),
+                width: size,
+                height: size,
+                child: child ?? Icon(icon, size: size * 0.6, color: color),
               ),
             ),
           ),

@@ -5,7 +5,9 @@ Küçük çocuklar için Android boyama uygulaması. Flutter ile yazıldı.
 ## Özellikler
 - **Okuma gerektirmeyen arayüz:** sadece büyük resimler, büyük renkli düğmeler ve simgeler.
 - **Dokun ve boya:** bir alana dokununca seçili renkle dolar.
-- **Parmakla çizim:** fırça simgesiyle serbest çizim. Sadece ilk parmak sayılır, avuç içi çizimi bozmaz.
+- **Çizim araçları:** kalem, fırça, pastel boya (tanecikli), sulu boya (yarı saydam, üst üste koyulaşır),
+  gökkuşağı fırçası ve silgi. Araç simgeleri seçili renkte görünür. Üç fırça kalınlığı var.
+  Sadece ilk parmak sayılır, avuç içi çizimi bozmaz.
 - **Geri al ve temizle:** temizleme de geri alınabilir, yanlışlıkla basılırsa sorun olmaz.
 - **9 özgün resim:** güneş, kedi, balık, elma, balonlar, çiçek, kelebek, araba, ev. Hepsi bu proje için basit şekillerle çizildi, bilinen bir karakter yok.
 - **Otomatik kayıt:** boyamalar cihazda saklanır, ana ekranda boyanmış halleri görünür.

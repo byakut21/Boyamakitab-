@@ -50,7 +50,7 @@ class GalleryScreen extends StatelessWidget {
                   itemCount: PictureLibrary.all.length,
                   itemBuilder: (context, i) {
                     final picture = PictureLibrary.all[i];
-                    final art = artworks[picture.id] ?? Artwork.blank(picture);
+                    final art = artworks[picture.id] ?? Artwork.blank;
                     return Semantics(
                       button: true,
                       label: picture.name,
@@ -67,8 +67,7 @@ class GalleryScreen extends StatelessWidget {
                               size: Size.infinite,
                               painter: PicturePainter(
                                 picture: picture,
-                                fills: art.fills,
-                                strokes: art.strokes,
+                                artwork: art,
                               ),
                             ),
                           ),

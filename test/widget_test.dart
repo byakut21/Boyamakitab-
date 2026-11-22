@@ -2,6 +2,7 @@ import 'package:boyama_kitabi/data/storage.dart';
 import 'package:boyama_kitabi/main.dart';
 import 'package:boyama_kitabi/model/artwork.dart';
 import 'package:boyama_kitabi/model/coloring_controller.dart';
+import 'package:boyama_kitabi/model/picture.dart';
 import 'package:boyama_kitabi/model/picture_library.dart';
 import 'package:boyama_kitabi/ui/picture_painter.dart';
 import 'package:flutter/material.dart';
@@ -34,42 +35,77 @@ void main() {
   group('Boyama durumu', () {
     test('boya, çiz, temizle ve geri al', () {
       final cat = PictureLibrary.byId('kedi')!;
-      final c = ColoringController(cat, Artwork.blank(cat));
+      final c = ColoringController(cat, Artwork.blank);
       expect(c.canUndo, isFalse);
 
       expect(c.fillAt(const Offset(500, 750), 0xFFE53935), isTrue);
-      // Aynı renk tekrar: değişiklik yok.
+      // Aynı renk hemen tekrar: değişiklik yok.
       expect(c.fillAt(const Offset(500, 750), 0xFFE53935), isFalse);
 
-      c.startStroke(const Offset(100, 100), 0xFF1E88E5);
+      c.startStroke(const Offset(100, 100), BrushKind.crayon, 0xFF1E88E5, 30);
       c.extendStroke(const Offset(200, 200));
       expect(c.endStroke(), isTrue);
-      expect(c.strokes, hasLength(1));
+      expect(c.ops, hasLength(2));
 
       expect(c.clearAll(), isTrue);
-      expect(c.fills.every((f) => f == white), isTrue);
-      expect(c.strokes, isEmpty);
+      expect(c.toArtwork().isEmpty, isTrue);
+      // Boş resim tekrar temizlenmez.
+      expect(c.clearAll(), isFalse);
 
       c.undo(); // temizlemeyi geri al
-      expect(c.strokes, hasLength(1));
-      expect(c.fills.contains(0xFFE53935), isTrue);
+      expect(c.toArtwork().visibleOps, hasLength(2));
       c.undo(); // çizgiyi geri al
-      expect(c.strokes, isEmpty);
       c.undo(); // boyamayı geri al
-      expect(c.fills.every((f) => f == white), isTrue);
       expect(c.canUndo, isFalse);
     });
 
-    test('kayıt JSON üzerinden aynen geri yüklenir', () {
+    test('tüm fırça türleri JSON üzerinden aynen geri yüklenir', () {
       final fish = PictureLibrary.byId('balik')!;
-      final c = ColoringController(fish, Artwork.blank(fish));
+      final c = ColoringController(fish, Artwork.blank);
       c.fillAt(const Offset(450, 500), 0xFFFB8C00);
-      c.startStroke(const Offset(10, 10), 0xFF212121);
-      c.endStroke();
-      final back = Artwork.fromJson(c.toArtwork().toJson());
-      expect(back.fills, c.fills);
-      expect(back.strokes.single.points, c.strokes.single.points);
+      for (final kind in BrushKind.values) {
+        c.startStroke(const Offset(10, 10), kind, 0xFF212121, kind.baseWidth);
+        c.extendStroke(const Offset(60, 80));
+        c.endStroke();
+      }
+      c.clearAll();
+      final back = Artwork.fromJson(c.toArtwork().toJson(), fish);
+      expect(back.ops, hasLength(c.ops.length));
+      final strokes = back.ops.whereType<BrushStroke>().toList();
+      expect(strokes.map((s) => s.kind), BrushKind.values);
+      expect(strokes.last.points, const [Offset(10, 10), Offset(60, 80)]);
+      expect(back.ops.last, isA<ClearOp>());
     });
+  });
+
+  testWidgets('silgi boyayı siler, sonra yeniden boyanabilir', (tester) async {
+    final apple = PictureLibrary.byId('elma')!;
+    final c = ColoringController(apple, Artwork.blank);
+    const red = 0xFFE53935;
+    const spot = Offset(500, 650); // elmanın ortası
+
+    Future<int> pixelAt(Offset p) async {
+      final image = c.committedImage();
+      final scale = ColoringController.cacheResolution / canvasSize;
+      final data = await tester.runAsync(() => image.toByteData());
+      final x = (p.dx * scale).round(), y = (p.dy * scale).round();
+      final i = (y * image.width + x) * 4;
+      final b = data!.buffer.asUint8List();
+      return 0xFF000000 | (b[i] << 16) | (b[i + 1] << 8) | b[i + 2];
+    }
+
+    c.fillAt(spot, red);
+    expect(await pixelAt(spot), red);
+
+    c.startStroke(spot - const Offset(50, 0), BrushKind.eraser, red, 56);
+    c.extendStroke(spot + const Offset(50, 0));
+    c.endStroke();
+    expect(await pixelAt(spot), white);
+
+    // Silinen yer, yeniden dokununca tekrar boyanır.
+    expect(c.fillAt(spot, red), isTrue);
+    expect(await pixelAt(spot), red);
+    c.dispose();
   });
 
   testWidgets('ana ekrandan bir resim açılıp boyanır', (tester) async {

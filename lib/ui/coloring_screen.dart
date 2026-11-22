@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -6,8 +8,27 @@ import '../model/coloring_controller.dart';
 import '../model/picture.dart';
 import 'components.dart';
 import 'picture_painter.dart';
+import 'tool_icons.dart';
 
-enum Tool { fill, brush }
+const _toolLabels = {
+  Tool.fill: 'Dokun ve boya',
+  Tool.pencil: 'Kalem',
+  Tool.marker: 'Fırça',
+  Tool.crayon: 'Pastel boya',
+  Tool.watercolor: 'Sulu boya',
+  Tool.rainbow: 'Gökkuşağı fırçası',
+  Tool.eraser: 'Silgi',
+};
+
+BrushKind? _brushFor(Tool tool) => switch (tool) {
+  Tool.fill => null,
+  Tool.pencil => BrushKind.pencil,
+  Tool.marker => BrushKind.marker,
+  Tool.crayon => BrushKind.crayon,
+  Tool.watercolor => BrushKind.watercolor,
+  Tool.rainbow => BrushKind.rainbow,
+  Tool.eraser => BrushKind.eraser,
+};
 
 class ColoringScreen extends StatefulWidget {
   const ColoringScreen({
@@ -31,6 +52,7 @@ class _ColoringScreenState extends State<ColoringScreen> {
   late final controller = ColoringController(widget.picture, widget.initial);
   Tool tool = Tool.fill;
   int color = paletteColors.first;
+  int sizeLevel = 1;
 
   @override
   void dispose() {
@@ -47,63 +69,156 @@ class _ColoringScreenState extends State<ColoringScreen> {
     widget.onChanged(controller.toArtwork());
   }
 
+  void _selectTool(Tool t) {
+    setState(() => tool = t);
+    _buzz();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(10),
           child: LayoutBuilder(
             builder: (context, constraints) {
               final landscape = constraints.maxWidth > constraints.maxHeight;
-              final tools = _ToolButtons(
-                vertical: landscape,
-                tool: tool,
-                controller: controller,
-                onHome: () => Navigator.of(context).pop(),
-                onTool: (t) {
-                  setState(() => tool = t);
-                  _buzz();
-                },
-                onUndo: () {
-                  if (controller.undo()) _changed();
-                },
-                onClear: () {
-                  if (controller.clearAll()) _changed();
+
+              final actions = ListenableBuilder(
+                listenable: controller,
+                builder: (context, _) {
+                  final buttons = [
+                    BigIconButton(
+                      icon: Icons.home_rounded,
+                      label: 'Ana sayfa',
+                      onTap: () => Navigator.of(context).pop(),
+                      color: const Color(0xFF1E88E5),
+                      size: 56,
+                    ),
+                    BigIconButton(
+                      icon: Icons.undo_rounded,
+                      label: 'Geri al',
+                      onTap: () {
+                        if (controller.undo()) _changed();
+                      },
+                      enabled: controller.canUndo,
+                      size: 56,
+                    ),
+                    BigIconButton(
+                      icon: Icons.delete_rounded,
+                      label: 'Temizle',
+                      onTap: () {
+                        if (controller.clearAll()) _changed();
+                      },
+                      color: const Color(0xFF8D6E63),
+                      size: 56,
+                    ),
+                  ];
+                  return landscape
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: 8,
+                          children: buttons,
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: 8,
+                          children: buttons,
+                        );
                 },
               );
+
+              // Kalınlık sadece çizim araçlarında anlamlı; boyamada soluk görünür.
+              final sizes = AnimatedOpacity(
+                opacity: tool == Tool.fill ? 0.3 : 1,
+                duration: const Duration(milliseconds: 200),
+                child: IgnorePointer(
+                  ignoring: tool == Tool.fill,
+                  child: Flex(
+                    direction: landscape ? Axis.vertical : Axis.horizontal,
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 6,
+                    children: [
+                      for (var i = 0; i < brushSizes.length; i++)
+                        SizeDot(
+                          level: i,
+                          selected: sizeLevel == i,
+                          color: color,
+                          onTap: () {
+                            setState(() => sizeLevel = i);
+                            _buzz();
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              );
+
+              final tools = _ToolBar(
+                vertical: landscape,
+                selected: tool,
+                color: color,
+                onSelect: _selectTool,
+              );
+
               final palette = PaletteBar(
                 selected: color,
                 vertical: landscape,
                 onSelect: (c) {
-                  setState(() => color = c);
+                  setState(() {
+                    color = c;
+                    // Silgi ya da gökkuşağındayken renk seçilirse boyamaya dön.
+                    if (tool == Tool.eraser || tool == Tool.rainbow) {
+                      tool = Tool.fill;
+                    }
+                  });
                   _buzz();
                 },
               );
+
               final canvas = Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(8),
                   child: Center(
                     child: _DrawingCanvas(
                       controller: controller,
                       tool: tool,
                       color: color,
+                      sizeFactor: brushSizes[sizeLevel],
                       onAction: _changed,
                     ),
                   ),
                 ),
               );
-              return landscape
-                  ? Row(children: [tools, canvas, palette])
-                  : Column(
-                      children: [
-                        tools,
-                        canvas,
-                        palette,
-                        const SizedBox(height: 8),
-                      ],
-                    );
+
+              if (landscape) {
+                return Row(
+                  spacing: 8,
+                  children: [
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [actions, sizes],
+                    ),
+                    tools,
+                    canvas,
+                    palette,
+                  ],
+                );
+              }
+              return Column(
+                spacing: 8,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [actions, sizes],
+                  ),
+                  canvas,
+                  tools,
+                  palette,
+                  const SizedBox(height: 4),
+                ],
+              );
             },
           ),
         ),
@@ -112,71 +227,51 @@ class _ColoringScreenState extends State<ColoringScreen> {
   }
 }
 
-class _ToolButtons extends StatelessWidget {
-  const _ToolButtons({
+/// Yedi araç: dikey ekranda tek satır, yatay ekranda tek sütun. Düğme boyutu
+/// ekrana sığacak şekilde ayarlanır.
+class _ToolBar extends StatelessWidget {
+  const _ToolBar({
     required this.vertical,
-    required this.tool,
-    required this.controller,
-    required this.onHome,
-    required this.onTool,
-    required this.onUndo,
-    required this.onClear,
+    required this.selected,
+    required this.color,
+    required this.onSelect,
   });
 
   final bool vertical;
-  final Tool tool;
-  final ColoringController controller;
-  final VoidCallback onHome;
-  final ValueChanged<Tool> onTool;
-  final VoidCallback onUndo;
-  final VoidCallback onClear;
+  final Tool selected;
+  final int color;
+  final ValueChanged<Tool> onSelect;
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: controller,
-      builder: (context, _) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 6.0;
+        final n = Tool.values.length;
+        final available = vertical
+            ? constraints.maxHeight
+            : constraints.maxWidth;
+        final size = math.min(60.0, (available - gap * (n - 1)) / n - 2);
         final buttons = [
-          BigIconButton(
-            icon: Icons.home_rounded,
-            label: 'Ana sayfa',
-            onTap: onHome,
-            color: const Color(0xFF1E88E5),
-          ),
-          BigIconButton(
-            icon: Icons.format_color_fill_rounded,
-            label: 'Dokun ve boya',
-            onTap: () => onTool(Tool.fill),
-            selected: tool == Tool.fill,
-            color: const Color(0xFFE53935),
-          ),
-          BigIconButton(
-            icon: Icons.brush_rounded,
-            label: 'Parmakla çiz',
-            onTap: () => onTool(Tool.brush),
-            selected: tool == Tool.brush,
-            color: const Color(0xFF8E24AA),
-          ),
-          BigIconButton(
-            icon: Icons.undo_rounded,
-            label: 'Geri al',
-            onTap: onUndo,
-            enabled: controller.canUndo,
-          ),
-          BigIconButton(
-            icon: Icons.delete_rounded,
-            label: 'Temizle',
-            onTap: onClear,
-            color: const Color(0xFF8D6E63),
-          ),
+          for (final t in Tool.values)
+            BigIconButton(
+              icon: Icons.circle,
+              label: _toolLabels[t]!,
+              selected: t == selected,
+              onTap: () => onSelect(t),
+              size: size,
+              child: ToolIcon(tool: t, color: color),
+            ),
         ];
         return vertical
             ? Column(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                mainAxisAlignment: MainAxisAlignment.center,
+                spacing: gap,
                 children: buttons,
               )
             : Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                mainAxisAlignment: MainAxisAlignment.center,
+                spacing: gap,
                 children: buttons,
               );
       },
@@ -190,12 +285,14 @@ class _DrawingCanvas extends StatefulWidget {
     required this.controller,
     required this.tool,
     required this.color,
+    required this.sizeFactor,
     required this.onAction,
   });
 
   final ColoringController controller;
   final Tool tool;
   final int color;
+  final double sizeFactor;
   final VoidCallback onAction;
 
   @override
@@ -239,10 +336,13 @@ class _DrawingCanvasState extends State<_DrawingCanvas> {
                   if (_pointer != null) return;
                   _pointer = e.pointer;
                   _downAt = e.localPosition;
-                  if (widget.tool == Tool.brush) {
+                  final brush = _brushFor(widget.tool);
+                  if (brush != null) {
                     c.startStroke(
                       _toPicture(e.localPosition, size),
+                      brush,
                       widget.color,
+                      brush.baseWidth * widget.sizeFactor,
                     );
                   }
                 },
@@ -253,7 +353,7 @@ class _DrawingCanvasState extends State<_DrawingCanvas> {
                 onPointerUp: (e) {
                   if (e.pointer != _pointer) return;
                   _pointer = null;
-                  if (c.currentPoints != null) {
+                  if (c.current != null) {
                     if (c.endStroke()) widget.onAction();
                   } else if ((e.localPosition - _downAt!).distance < 40 &&
                       c.fillAt(_toPicture(_downAt!, size), widget.color)) {
@@ -267,12 +367,7 @@ class _DrawingCanvasState extends State<_DrawingCanvas> {
                 },
                 child: CustomPaint(
                   size: size,
-                  painter: PicturePainter(
-                    picture: c.picture,
-                    fills: c.fills,
-                    strokes: c.strokes,
-                    live: c,
-                  ),
+                  painter: PicturePainter(picture: c.picture, live: c),
                 ),
               );
             },

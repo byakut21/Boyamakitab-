@@ -14,7 +14,7 @@ class Storage {
 
   final SharedPreferences _prefs;
 
-  static String _key(String id) => 'art_$id';
+  static String _key(String id) => 'art2_$id';
 
   Map<String, Artwork> loadAll(List<ColoringPicture> pictures) {
     final result = <String, Artwork>{};
@@ -22,8 +22,10 @@ class Storage {
       final text = _prefs.getString(_key(p.id));
       if (text == null) continue;
       try {
-        final art = Artwork.fromJson(jsonDecode(text) as Map<String, dynamic>);
-        if (art.fills.length == p.regions.length) result[p.id] = art;
+        result[p.id] = Artwork.fromJson(
+          jsonDecode(text) as Map<String, dynamic>,
+          p,
+        );
       } catch (_) {
         // Bozuk kayıt: yok say, resim boş açılır.
       }
@@ -36,7 +38,7 @@ class Storage {
 
   Future<void> deleteAll() async {
     for (final key
-        in _prefs.getKeys().where((k) => k.startsWith('art_')).toList()) {
+        in _prefs.getKeys().where((k) => k.startsWith('art')).toList()) {
       await _prefs.remove(key);
     }
   }

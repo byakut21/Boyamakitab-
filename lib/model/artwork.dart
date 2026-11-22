@@ -1,20 +1,91 @@
+import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui';
 
 import 'picture.dart';
 
 const int white = 0xFFFFFFFF;
 
-/// Parmakla çizilmiş tek bir çizgi; noktalar resim koordinatlarındadır.
-class BrushStroke {
-  BrushStroke(this.color, this.points);
+/// Çizim araçları. Her birinin kendine özgü bir görünümü var.
+enum BrushKind {
+  /// İnce, net kurşun kalem çizgisi.
+  pencil(10),
 
+  /// Yumuşak uçlu, dolgun fırça.
+  marker(36),
+
+  /// Pürüzlü, tanecikli pastel boya.
+  crayon(32),
+
+  /// Yarı saydam, kenarları dağılan sulu boya; üst üste geldikçe koyulaşır.
+  watercolor(52),
+
+  /// Çizdikçe renk değiştiren gökkuşağı fırçası.
+  rainbow(36),
+
+  /// Silgi: boyayı da çizgiyi de siler, çizgiler (konturlar) kalır.
+  eraser(56);
+
+  const BrushKind(this.baseWidth);
+  final double baseWidth;
+}
+
+/// Fırça kalınlıkları: ince, orta, kalın.
+const List<double> brushSizes = [0.55, 1.0, 1.7];
+
+/// Bir boyama işlemi. Resim, işlemler sırayla uygulanarak çizilir.
+sealed class DrawOp {
+  const DrawOp();
+
+  Map<String, Object> toJson();
+
+  static DrawOp fromJson(Map<String, dynamic> json) => switch (json['t']) {
+    'f' => FillOp(json['r'] as int, json['c'] as int),
+    's' => BrushStroke.fromJson(json),
+    'x' => const ClearOp(),
+    _ => throw FormatException('Bilinmeyen işlem: ${json['t']}'),
+  };
+}
+
+/// Bir alanı tek renkle boyar.
+class FillOp extends DrawOp {
+  const FillOp(this.region, this.color);
+  final int region;
   final int color;
+
+  @override
+  Map<String, Object> toJson() => {'t': 'f', 'r': region, 'c': color};
+}
+
+/// Resmi tamamen temizler; önceki işlemler geri alma için listede kalır.
+class ClearOp extends DrawOp {
+  const ClearOp();
+
+  @override
+  Map<String, Object> toJson() => {'t': 'x'};
+}
+
+/// Parmakla çizilmiş tek bir çizgi; noktalar resim koordinatlarındadır.
+class BrushStroke extends DrawOp {
+  BrushStroke(this.kind, this.color, this.width, this.points);
+
+  final BrushKind kind;
+  final int color;
+  final double width;
   final List<Offset> points;
 
   late final Path path = buildStrokePath(points);
 
+  /// Pastel boya taneleri: [x, y, x, y, ...]. Aynı çizgi her seferinde aynı görünsün
+  /// diye sabit tohumlu rastgele sayılarla bir kez üretilir.
+  late final Float32List crayonGrain = buildCrayonGrain(points, width);
+
+  @override
   Map<String, Object> toJson() => {
+    't': 's',
+    'k': kind.name,
     'c': color,
+    'w': width,
     'p': [
       for (final p in points) ...[p.dx.roundToDouble(), p.dy.roundToDouble()],
     ],
@@ -22,33 +93,53 @@ class BrushStroke {
 
   static BrushStroke fromJson(Map<String, dynamic> json) {
     final raw = (json['p'] as List).cast<num>();
-    return BrushStroke(json['c'] as int, [
-      for (var i = 0; i + 1 < raw.length; i += 2)
-        Offset(raw[i].toDouble(), raw[i + 1].toDouble()),
-    ]);
+    return BrushStroke(
+      BrushKind.values.byName(json['k'] as String),
+      json['c'] as int,
+      (json['w'] as num).toDouble(),
+      [
+        for (var i = 0; i + 1 < raw.length; i += 2)
+          Offset(raw[i].toDouble(), raw[i + 1].toDouble()),
+      ],
+    );
   }
 }
 
-/// Bir resmin o anki boyanmış hali.
+/// Bir resmin o anki boyanmış hali: sırayla uygulanan işlemler.
 class Artwork {
-  const Artwork(this.fills, this.strokes);
+  const Artwork(this.ops);
 
-  factory Artwork.blank(ColoringPicture picture) =>
-      Artwork(List.filled(picture.regions.length, white), const []);
+  static const blank = Artwork([]);
 
-  final List<int> fills;
-  final List<BrushStroke> strokes;
+  final List<DrawOp> ops;
+
+  /// Son temizlemeden sonraki, ekranda görünen işlemler.
+  Iterable<DrawOp> get visibleOps {
+    final start = ops.lastIndexWhere((op) => op is ClearOp) + 1;
+    return ops.skip(start);
+  }
+
+  bool get isEmpty => visibleOps.isEmpty;
 
   Map<String, Object> toJson() => {
-    'fills': fills,
-    'strokes': [for (final s in strokes) s.toJson()],
+    'v': 2,
+    'ops': [for (final op in ops) op.toJson()],
   };
 
-  static Artwork fromJson(Map<String, dynamic> json) =>
-      Artwork((json['fills'] as List).cast<int>(), [
-        for (final s in json['strokes'] as List)
-          BrushStroke.fromJson(s as Map<String, dynamic>),
-      ]);
+  static Artwork fromJson(Map<String, dynamic> json, ColoringPicture picture) {
+    if (json['v'] != 2) throw const FormatException('Eski kayıt biçimi');
+    final ops = [
+      for (final o in json['ops'] as List)
+        DrawOp.fromJson(o as Map<String, dynamic>),
+    ];
+    for (final op in ops) {
+      if (op is FillOp &&
+          (op.region < 0 || op.region >= picture.regions.length)) {
+        throw const FormatException('Resimle uyuşmayan kayıt');
+      }
+    }
+    return Artwork(ops);
+  }
 }
 
 /// Noktaları yumuşak bir eğriyle birleştirir.
@@ -63,4 +154,39 @@ Path buildStrokePath(List<Offset> pts) {
   }
   path.lineTo(pts.last.dx, pts.last.dy);
   return path;
+}
+
+/// Çizgi boyunca, kalınlığın içine rastgele serpiştirilmiş taneler.
+Float32List buildCrayonGrain(List<Offset> pts, double width) {
+  if (pts.isEmpty) return Float32List(0);
+  final seed =
+      pts.first.dx.round() * 7919 + pts.first.dy.round() * 104729 + pts.length;
+  final rnd = math.Random(seed);
+  final out = <double>[];
+  final radius = width / 2;
+  void sprinkle(Offset c, int n) {
+    for (var k = 0; k < n; k++) {
+      final a = rnd.nextDouble() * 2 * math.pi;
+      final r = radius * math.sqrt(rnd.nextDouble());
+      out
+        ..add(c.dx + r * math.cos(a))
+        ..add(c.dy + r * math.sin(a));
+    }
+  }
+
+  if (pts.length == 1) {
+    sprinkle(pts.first, 40);
+  } else {
+    final step = math.max(2.0, width / 10);
+    for (var i = 1; i < pts.length; i++) {
+      final a = pts[i - 1];
+      final b = pts[i];
+      final len = (b - a).distance;
+      final n = math.max(1, (len / step).ceil());
+      for (var j = 0; j < n; j++) {
+        sprinkle(Offset.lerp(a, b, j / n)!, 3);
+      }
+    }
+  }
+  return Float32List.fromList(out);
 }

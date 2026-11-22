@@ -42,7 +42,7 @@ class _BoyamaAppState extends State<BoyamaApp> {
       MaterialPageRoute<void>(
         builder: (_) => ColoringScreen(
           picture: picture,
-          initial: artworks[picture.id] ?? Artwork.blank(picture),
+          initial: artworks[picture.id] ?? Artwork.blank,
           haptics: haptics,
           onChanged: (art) {
             setState(() => artworks[picture.id] = art);

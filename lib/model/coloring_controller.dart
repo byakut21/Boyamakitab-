@@ -1,115 +1,114 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
+import '../ui/art_renderer.dart';
 import 'artwork.dart';
 import 'picture.dart';
 
-sealed class _Action {}
-
-class _Fill extends _Action {
-  _Fill(this.index, this.previous);
-  final int index;
-  final int previous;
-}
-
-class _Stroke extends _Action {}
-
-class _Clear extends _Action {
-  _Clear(this.fills, this.strokes);
-  final List<int> fills;
-  final List<BrushStroke> strokes;
-}
-
-/// Boyama ekranının durumu: alan renkleri, çizgiler ve geri alma geçmişi.
+/// Boyama ekranının durumu: işlemler, çizilmekte olan çizgi ve geri alma.
 class ColoringController extends ChangeNotifier {
   ColoringController(this.picture, Artwork initial)
-    : fills = List.of(
-        initial.fills.length == picture.regions.length
-            ? initial.fills
-            : Artwork.blank(picture).fills,
-      ),
-      strokes = List.of(initial.strokes);
+    : ops = List.of(initial.ops);
 
-  static const _maxHistory = 100;
-  static const _minStep = 4.0;
+  /// Biten işlemlerin önbelleğe alınan görüntüsünün çözünürlüğü.
+  static const cacheResolution = 1400;
+  static const _minStep = 3.0;
 
   final ColoringPicture picture;
-  final List<int> fills;
-  final List<BrushStroke> strokes;
-  final _history = <_Action>[];
+  final List<DrawOp> ops;
 
   /// Şu anda çizilmekte olan çizgi.
-  List<Offset>? currentPoints;
-  int currentColor = white;
+  BrushStroke? current;
 
-  bool get canUndo => _history.isNotEmpty;
+  ui.Image? _cache;
 
-  void _push(_Action action) {
-    _history.add(action);
-    if (_history.length > _maxHistory) _history.removeAt(0);
+  bool get canUndo => ops.isNotEmpty;
+
+  /// Biten işlemlerin görüntüsü. Her çizimde baştan çizmek yerine bir kez
+  /// resim olarak hazırlanır; böylece yüzlerce çizgide bile akıcı kalır.
+  ui.Image committedImage() {
+    final cached = _cache;
+    if (cached != null) return cached;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.scale(cacheResolution / canvasSize);
+    ArtRenderer.paintArt(canvas, picture, Artwork(ops));
+    final pic = recorder.endRecording();
+    final image = pic.toImageSync(cacheResolution, cacheResolution);
+    pic.dispose();
+    return _cache = image;
+  }
+
+  void _changed() {
+    _cache?.dispose();
+    _cache = null;
+    notifyListeners();
   }
 
   /// Dokunulan alanı boyar. Bir şey değiştiyse true döner.
   bool fillAt(Offset p, int color) {
     final index = picture.regionAt(p);
-    if (index < 0 || fills[index] == color) return false;
-    _push(_Fill(index, fills[index]));
-    fills[index] = color;
-    notifyListeners();
+    if (index < 0) return false;
+    final last = ops.isEmpty ? null : ops.last;
+    if (last is FillOp && last.region == index && last.color == color) {
+      return false;
+    }
+    ops.add(FillOp(index, color));
+    _changed();
     return true;
   }
 
-  void startStroke(Offset p, int color) {
-    currentColor = color;
-    currentPoints = [p];
+  void startStroke(Offset p, BrushKind kind, int color, double width) {
+    current = BrushStroke(kind, color, width, [p]);
     notifyListeners();
   }
 
   void extendStroke(Offset p) {
-    final pts = currentPoints;
-    if (pts == null) return;
-    if ((pts.last - p).distance < _minStep) return;
-    pts.add(p);
+    final stroke = current;
+    if (stroke == null) return;
+    if ((stroke.points.last - p).distance < _minStep) return;
+    stroke.points.add(p);
     notifyListeners();
   }
 
   bool endStroke() {
-    final pts = currentPoints;
-    if (pts == null) return false;
-    strokes.add(BrushStroke(currentColor, List.unmodifiable(pts)));
-    currentPoints = null;
-    _push(_Stroke());
-    notifyListeners();
+    final stroke = current;
+    if (stroke == null) return false;
+    current = null;
+    ops.add(
+      BrushStroke(
+        stroke.kind,
+        stroke.color,
+        stroke.width,
+        List.unmodifiable(stroke.points),
+      ),
+    );
+    _changed();
     return true;
   }
 
   /// Resmi temizler. Bu da geri alınabilir; yanlışlıkla basılırsa sorun olmaz.
   bool clearAll() {
-    if (strokes.isEmpty && fills.every((c) => c == white)) return false;
-    _push(_Clear(List.of(fills), List.of(strokes)));
-    fills.fillRange(0, fills.length, white);
-    strokes.clear();
-    notifyListeners();
+    if (Artwork(ops).isEmpty) return false;
+    ops.add(const ClearOp());
+    _changed();
     return true;
   }
 
   bool undo() {
-    if (_history.isEmpty) return false;
-    switch (_history.removeLast()) {
-      case _Fill(:final index, :final previous):
-        fills[index] = previous;
-      case _Stroke():
-        if (strokes.isNotEmpty) strokes.removeLast();
-      case _Clear(fills: final oldFills, strokes: final oldStrokes):
-        fills.setAll(0, oldFills);
-        strokes
-          ..clear()
-          ..addAll(oldStrokes);
-    }
-    notifyListeners();
+    if (ops.isEmpty) return false;
+    ops.removeLast();
+    _changed();
     return true;
   }
 
-  Artwork toArtwork() =>
-      Artwork(List.unmodifiable(fills), List.unmodifiable(strokes));
+  Artwork toArtwork() => Artwork(List.unmodifiable(ops));
+
+  @override
+  void dispose() {
+    _cache?.dispose();
+    super.dispose();
+  }
 }
