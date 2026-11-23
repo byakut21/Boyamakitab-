@@ -46,6 +46,16 @@ class Storage {
   bool get haptics => _prefs.getBool('haptics') ?? true;
   set haptics(bool value) => _prefs.setBool('haptics', value);
 
+  /// Ebeveyn şifresi (4 haneli). Hiç belirlenmediyse null.
+  String? get parentPin => _prefs.getString('parentPin');
+  set parentPin(String? value) => value == null
+      ? _prefs.remove('parentPin')
+      : _prefs.setString('parentPin', value);
+
+  /// Çocuk kilidi (ekran sabitleme) açık mı.
+  bool get childLock => _prefs.getBool('childLock') ?? false;
+  set childLock(bool value) => _prefs.setBool('childLock', value);
+
   bool get music => _prefs.getBool('music') ?? true;
   set music(bool value) => _prefs.setBool('music', value);
 

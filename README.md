@@ -16,7 +16,13 @@ Küçük çocuklar için Android boyama uygulaması. Flutter ile yazıldı.
 - **18 özgün resim:** güneş, kedi, balık, elma, balonlar, çiçek, kelebek, araba, ev, tavşan, kuş,
   kaplumbağa, tekne, uçak, ağaç, dondurma, pasta, roket. Hepsi bu proje için basit şekillerle çizildi, bilinen bir karakter yok.
 - **Otomatik kayıt:** boyamalar cihazda saklanır, ana ekranda boyanmış halleri görünür.
-- **Ebeveyn kilidi:** ana ekranın sağ üstündeki soluk kilidi 3 saniye basılı tutunca panel açılır (müzik, ses efektleri ve titreşim ayarları, tüm boyamaları silme, uygulamadan çıkış). Ana ekranda geri tuşu uygulamadan çıkarmaz.
+- **Ebeveyn şifresi:** ana ekranın sağ üstündeki soluk kilidi 3 saniye basılı tutup 4 haneli şifreyi girince
+  panel açılır (şifre ilk seferde belirlenir). Panelde: çocuk kilidi, şifre değiştirme, müzik/ses/titreşim,
+  tüm boyamaları silme ve çıkış.
+- **Çocuk kilidi:** açılınca uygulama Android'in ekran sabitleme özelliğiyle ekrana kilitlenir; ana ekran,
+  son uygulamalar, bildirim çubuğu ve bölünmüş ekran çalışmaz. Çıkış sadece ebeveyn panelinden, şifreyle.
+  Android'in kendi kilit açma hareketini (Geri + Son uygulamalar) de şifreye bağlamak için telefonda
+  Ayarlar > Güvenlik > Uygulama sabitleme > "Sabitlemeyi kaldırmadan önce PIN iste" açılmalıdır.
 - **Güvenli:** internet izni yok, reklam yok, veri toplama yok. Tam ekran çalışır, ekran kararmaz.
 
 ## APK'yı indirmek

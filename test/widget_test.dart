@@ -1,4 +1,5 @@
 import 'package:boyama_kitabi/data/app_audio.dart';
+import 'package:boyama_kitabi/data/kiosk.dart';
 import 'package:boyama_kitabi/data/storage.dart';
 import 'package:boyama_kitabi/main.dart';
 import 'package:boyama_kitabi/model/artwork.dart';
@@ -140,4 +141,87 @@ void main() {
     await tester.pump();
     expect(storage.loadAll(PictureLibrary.all), contains('gunes'));
   });
+
+  testWidgets('ebeveyn paneli şifreyle açılır, çocuk kilidi açılıp kapanır', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final storage = await Storage.open();
+    final kiosk = _FakeKiosk();
+    await tester.pumpWidget(
+      BoyamaApp(storage: storage, audio: AppAudio.silent(), kiosk: kiosk),
+    );
+
+    Future<void> holdLock() async {
+      final lock = find.bySemanticsLabel(
+        'Ebeveyn paneli: 3 saniye basılı tutun',
+      );
+      final g = await tester.startGesture(tester.getCenter(lock));
+      // Animasyon ilk karede başlar; 3 saniyeyi karelere bölerek ilerlet.
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(seconds: 1));
+      }
+      await g.up();
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> type(String pin) async {
+      for (final d in pin.split('')) {
+        await tester.tap(find.widgetWithText(InkWell, d));
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+    }
+
+    // Kısa dokunuş paneli açmaz.
+    await tester.tap(
+      find.bySemanticsLabel('Ebeveyn paneli: 3 saniye basılı tutun'),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Yeni 4 haneli şifre belirleyin'), findsNothing);
+
+    // İlk seferde şifre belirlenir.
+    await holdLock();
+    expect(find.text('Yeni 4 haneli şifre belirleyin'), findsOneWidget);
+    await type('1234');
+    await type('1234');
+    expect(storage.parentPin, '1234');
+    expect(find.text('Ebeveyn Paneli'), findsOneWidget);
+
+    await tester.tap(find.text('Çocuk kilidi'));
+    await tester.pumpAndSettle();
+    expect(storage.childLock, isTrue);
+    expect(kiosk.calls, contains('start'));
+    await tester.tap(find.text('Kapat'));
+    await tester.pumpAndSettle();
+
+    // Yanlış şifre paneli açmaz.
+    await holdLock();
+    await type('9999');
+    expect(find.text('Şifre yanlış'), findsOneWidget);
+    expect(find.text('Ebeveyn Paneli'), findsNothing);
+    await type('1234');
+    expect(find.text('Ebeveyn Paneli'), findsOneWidget);
+
+    await tester.tap(find.text('Çocuk kilidi'));
+    await tester.pumpAndSettle();
+    expect(storage.childLock, isFalse);
+    expect(kiosk.calls.last, 'stop');
+  });
+}
+
+class _FakeKiosk extends Kiosk {
+  final calls = <String>[];
+
+  @override
+  Future<void> start() async => calls.add('start');
+
+  @override
+  Future<void> stop() async => calls.add('stop');
+
+  @override
+  Future<bool> isLocked() async => calls.contains('start');
+
+  @override
+  Future<void> exit() async => calls.add('exit');
 }

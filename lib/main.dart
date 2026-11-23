@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'data/app_audio.dart';
+import 'data/kiosk.dart';
 import 'data/storage.dart';
 import 'model/artwork.dart';
 import 'model/picture.dart';
@@ -11,6 +12,7 @@ import 'ui/coloring_screen.dart';
 import 'ui/components.dart';
 import 'ui/gallery_screen.dart';
 import 'ui/parent_panel.dart';
+import 'ui/pin_pad.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,10 +25,16 @@ Future<void> main() async {
 }
 
 class BoyamaApp extends StatefulWidget {
-  const BoyamaApp({super.key, required this.storage, required this.audio});
+  const BoyamaApp({
+    super.key,
+    required this.storage,
+    required this.audio,
+    this.kiosk = const Kiosk(),
+  });
 
   final Storage storage;
   final AppAudio audio;
+  final Kiosk kiosk;
 
   @override
   State<BoyamaApp> createState() => _BoyamaAppState();
@@ -52,7 +60,14 @@ class _BoyamaAppState extends State<BoyamaApp> {
     _lifecycle = AppLifecycleListener(
       onHide: widget.audio.pauseMusic,
       onShow: widget.audio.resumeMusic,
+      onResume: _applyChildLock,
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _applyChildLock());
+  }
+
+  /// Çocuk kilidi açıksa uygulamayı ekrana sabitler.
+  void _applyChildLock() {
+    if (widget.storage.childLock) widget.kiosk.start();
   }
 
   @override
@@ -80,10 +95,32 @@ class _BoyamaAppState extends State<BoyamaApp> {
     );
   }
 
-  void _showParentPanel() {
-    showDialog<void>(
-      context: _navigator.currentContext!,
+  /// Kilit 3 sn basılı tutulunca: önce şifre (ilk seferde şifre belirlenir), sonra panel.
+  Future<void> _showParentPanel() async {
+    final context = _navigator.currentContext!;
+    final pin = widget.storage.parentPin;
+    if (pin == null) {
+      final created = await PinDialog.create(context);
+      if (created == null) return;
+      widget.storage.parentPin = created;
+    } else if (!await PinDialog.verify(context, pin)) {
+      return;
+    }
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
       builder: (_) => ParentPanel(
+        childLock: widget.storage.childLock,
+        onChildLockChanged: (v) {
+          widget.storage.childLock = v;
+          v ? widget.kiosk.start() : widget.kiosk.stop();
+        },
+        onChangePin: () async {
+          final ctx = _navigator.currentContext!;
+          final created = await PinDialog.create(ctx);
+          if (created != null) widget.storage.parentPin = created;
+          return created != null;
+        },
         music: music,
         onMusicChanged: (v) {
           setState(() => music = v);
@@ -105,7 +142,7 @@ class _BoyamaAppState extends State<BoyamaApp> {
           setState(artworks.clear);
           widget.storage.deleteAll();
         },
-        onExit: () => SystemNavigator.pop(),
+        onExit: widget.kiosk.exit,
       ),
     );
   }
