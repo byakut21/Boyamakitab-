@@ -32,7 +32,7 @@ android {
     }
 
     // Her derleme aynı anahtarla imzalanır; böylece yeni sürüm eskisinin üstüne kurulur
-    // ve boyamalar silinmez. Anahtar GitHub secret'larından gelir (bkz. apk.yml).
+    // ve boyamalar silinmez. Anahtar bu özel depoda durur (android/imza.properties).
     val imza = Properties().apply {
         val f = rootProject.file("imza.properties")
         if (f.exists()) f.inputStream().use { load(it) }

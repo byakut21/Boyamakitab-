@@ -32,10 +32,11 @@ Her gönderimde GitHub Actions uygulamayı test eder ve APK'yı derler. Repo say
 
 ## Güncelleme
 
-Depoda `KEYSTORE_BASE64` ve `KEYSTORE_PASSWORD` adlı iki GitHub secret'ı varsa her APK aynı
-anahtarla imzalanır; sürüm numarası da her derlemede artar. Böylece yeni APK eskisinin
-üstüne kurulur, boyamalar ve ayarlar kalır. Secret yoksa APK geçici bir anahtarla imzalanır
-ve güncellemek için eskisini silmek gerekir.
+Her APK, bu özel depodaki aynı anahtarla (`android/app/boyama-imza.jks`,
+`android/imza.properties`) imzalanır ve sürüm numarası her derlemede artar. Böylece yeni APK
+eskisinin üstüne kurulur, boyamalar ve ayarlar kalır. Depo herkese açık yapılacaksa önce
+anahtarı `KEYSTORE_BASE64` ve `KEYSTORE_PASSWORD` GitHub secret'larına taşıyıp bu iki dosyayı
+depodan silin.
 
 ## Çocuk kilidi
 

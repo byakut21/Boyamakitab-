@@ -33,7 +33,7 @@ jobs:
             printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=boyama\nstoreFile=boyama-imza.jks\n' \
               "$KEYSTORE_PASSWORD" "$KEYSTORE_PASSWORD" > android/imza.properties
           else
-            echo "::warning::KEYSTORE_BASE64 yok; APK geçici anahtarla imzalanıyor."
+            echo "Depodaki imza anahtarı kullanılıyor."
           fi
       - name: APK derle
         # Sürüm numarası her derlemede artar; Android güncellemeyi üstüne kurar.
