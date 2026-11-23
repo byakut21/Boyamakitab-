@@ -25,6 +25,12 @@ class Kiosk {
   Future<void> stop() => _call('stop');
   Future<bool> isLocked() => _call('isLocked');
 
+  /// Uygulama cihaz sahibi yapıldıysa sabitleme sorusuz ve uyarısızdır.
+  Future<bool> isFullLock() => _call('isFullLock');
+
+  /// Tam kilidi (cihaz sahipliğini) kaldırır; sonra normal sabitlemeye dönülür.
+  Future<void> clearFullLock() => _call('clearFullLock');
+
   /// Kilidi kaldırıp uygulamayı kapatır.
   Future<void> exit() async {
     if (!await _call('exit')) await SystemNavigator.pop();

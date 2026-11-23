@@ -22,8 +22,22 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
+      - name: İmza anahtarını hazırla
+        # Anahtar varsa her APK aynı imzayla çıkar ve eskisinin üstüne kurulur.
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/boyama-imza.jks
+            printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=boyama\nstoreFile=boyama-imza.jks\n' \
+              "$KEYSTORE_PASSWORD" "$KEYSTORE_PASSWORD" > android/imza.properties
+          else
+            echo "::warning::KEYSTORE_BASE64 yok; APK geçici anahtarla imzalanıyor."
+          fi
       - name: APK derle
-        run: flutter build apk --release
+        # Sürüm numarası her derlemede artar; Android güncellemeyi üstüne kurar.
+        run: flutter build apk --release --build-number=$((100 + ${{ github.run_number }}))
       - uses: actions/upload-artifact@v4
         with:
           name: boyama-kitabi-apk

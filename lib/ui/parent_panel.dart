@@ -5,6 +5,8 @@ class ParentPanel extends StatefulWidget {
   const ParentPanel({
     super.key,
     required this.childLock,
+    this.fullLock = false,
+    this.onClearFullLock,
     required this.onChildLockChanged,
     required this.onChangePin,
     required this.haptics,
@@ -18,6 +20,10 @@ class ParentPanel extends StatefulWidget {
   });
 
   final bool childLock;
+
+  /// Uygulama cihaz sahibi: sabitleme sorusuz, uyarısız ve kısayolla açılamaz.
+  final bool fullLock;
+  final Future<void> Function()? onClearFullLock;
   final ValueChanged<bool> onChildLockChanged;
 
   /// Yeni şifre belirletir; değiştiyse true döner.
@@ -37,6 +43,7 @@ class ParentPanel extends StatefulWidget {
 
 class _ParentPanelState extends State<ParentPanel> {
   late bool childLock = widget.childLock;
+  late bool fullLock = widget.fullLock;
   bool pinChanged = false;
   late bool haptics = widget.haptics;
   late bool music = widget.music;
@@ -68,6 +75,15 @@ class _ParentPanelState extends State<ParentPanel> {
                 widget.onChildLockChanged(v);
               },
             ),
+            if (fullLock)
+              OutlinedButton.icon(
+                icon: const Icon(Icons.verified_user_rounded),
+                onPressed: () async {
+                  await widget.onClearFullLock?.call();
+                  if (mounted) setState(() => fullLock = false);
+                },
+                label: const Text('Tam kilit açık · kaldırmak için dokunun'),
+              ),
             OutlinedButton.icon(
               icon: const Icon(Icons.password_rounded),
               onPressed: () async {
@@ -133,11 +149,18 @@ class _ParentPanelState extends State<ParentPanel> {
               child: const Text('Kilidi kaldır ve uygulamadan çık'),
             ),
             Text(
-              'Çocuk kilidi açıkken Android, "Geri" ve "Son uygulamalar" tuşlarına '
-              'birlikte uzun basılarak da kilidi açmaya izin verir. Bunu da şifreye '
-              'bağlamak için telefonun Ayarlar > Güvenlik > Uygulama sabitleme '
-              'bölümünde "Sabitlemeyi kaldırmadan önce PIN iste" seçeneğini açın. '
-              'Uygulama internet kullanmaz, reklam içermez ve veri toplamaz.',
+              fullLock
+                  ? 'Tam kilit açık: uygulama uyarısız sabitlenir ve çıkış sadece '
+                        'bu panelden yapılır. '
+                        'Uygulama internet kullanmaz, reklam içermez ve veri toplamaz.'
+                  : 'Android sabitlerken "Uygulama sabitlensin mi?" diye sorar ve '
+                        '"Uygulama sabitlendi" uyarısı gösterir; bu, telefonun kendi '
+                        'güvenlik uyarısıdır. "Geri" ve "Son uygulamalar" tuşlarına '
+                        'birlikte uzun basmak da kilidi açar. Bunu şifreye bağlamak için '
+                        'Ayarlar > Güvenlik > Uygulama sabitleme bölümünde '
+                        '"Sabitlemeyi kaldırmadan önce PIN iste" seçeneğini açın. '
+                        'Uyarısız tam kilit için README\'deki "Tam kilit" adımlarına bakın. '
+                        'Uygulama internet kullanmaz, reklam içermez ve veri toplamaz.',
               style: text.bodySmall,
             ),
           ],

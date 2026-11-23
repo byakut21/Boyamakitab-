@@ -208,20 +208,76 @@ void main() {
     expect(storage.childLock, isFalse);
     expect(kiosk.calls.last, 'stop');
   });
+
+  testWidgets('Sabitleme Geri tuşuyla kaldırılınca şifre sorulur', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'parentPin': '1234',
+      'childLock': true,
+    });
+    final storage = await Storage.open();
+    final kiosk = _FakeKiosk();
+    await tester.pumpWidget(
+      BoyamaApp(storage: storage, audio: AppAudio.silent(), kiosk: kiosk),
+    );
+    await tester.pump(const Duration(seconds: 2));
+    expect(kiosk.locked, isTrue);
+    expect(kiosk.calls.where((c) => c == 'start'), hasLength(1));
+
+    Future<void> type(String pin) async {
+      for (final d in pin.split('')) {
+        await tester.tap(find.widgetWithText(InkWell, d));
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+    }
+
+    // Android'in kısayoluyla sabitleme kalkar: uygulama hemen yeniden sabitler
+    // ve kendi şifresini sorar.
+    kiosk.locked = false;
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(kiosk.locked, isTrue);
+    expect(find.text('Kilidi açmak için ebeveyn şifresi'), findsOneWidget);
+
+    await type('0000');
+    expect(kiosk.locked, isTrue);
+    await type('1234');
+    expect(kiosk.locked, isFalse);
+    expect(find.text('Kilidi açmak için ebeveyn şifresi'), findsNothing);
+
+    // Şifre doğru girildikten sonra tekrar sabitlemez.
+    await tester.pump(const Duration(seconds: 3));
+    expect(kiosk.locked, isFalse);
+  });
 }
 
 class _FakeKiosk extends Kiosk {
   final calls = <String>[];
+  bool locked = false;
 
   @override
-  Future<void> start() async => calls.add('start');
+  Future<void> start() async {
+    calls.add('start');
+    locked = true;
+  }
 
   @override
-  Future<void> stop() async => calls.add('stop');
+  Future<void> stop() async {
+    calls.add('stop');
+    locked = false;
+  }
 
   @override
-  Future<bool> isLocked() async => calls.contains('start');
+  Future<bool> isLocked() async => locked;
 
   @override
-  Future<void> exit() async => calls.add('exit');
+  Future<bool> isFullLock() async => false;
+
+  @override
+  Future<void> exit() async {
+    calls.add('exit');
+    locked = false;
+  }
 }

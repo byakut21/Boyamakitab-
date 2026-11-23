@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -58,20 +60,87 @@ class _BoyamaAppState extends State<BoyamaApp> {
       ..musicEnabled = music;
     // Uygulama arka plana gidince müzik sussun, dönünce devam etsin.
     _lifecycle = AppLifecycleListener(
-      onHide: widget.audio.pauseMusic,
-      onShow: widget.audio.resumeMusic,
-      onResume: _applyChildLock,
+      onHide: () {
+        widget.audio.pauseMusic();
+        _watch?.cancel();
+      },
+      onShow: () {
+        widget.audio.resumeMusic();
+        _applyChildLock();
+        _startWatch();
+      },
     );
     WidgetsBinding.instance.addPostFrameCallback((_) => _applyChildLock());
+    _startWatch();
   }
 
+  Timer? _watch;
+  bool _wasLocked = false;
+
+  /// Ebeveyn, sabitleme kaldırılınca şifreyi doğru girdi: bir sonraki açılışa
+  /// (veya kilidi panelden yeniden açana) kadar tekrar sabitleme.
+  bool _suspended = false;
+  bool _askingPin = false;
+
+  /// Sabitlemenin "Geri" tuşuyla kaldırılıp kaldırılmadığını saniyede bir yoklar.
+  void _startWatch() {
+    _watch?.cancel();
+    _watch = Timer.periodic(const Duration(seconds: 1), (_) => _checkLock());
+  }
+
+  Future<void> _checkLock() async {
+    if (!widget.storage.childLock || _suspended) {
+      _wasLocked = false;
+      return;
+    }
+    final locked = await widget.kiosk.isLocked();
+    if (_wasLocked && !locked) _onUnpinned();
+    _wasLocked = locked;
+  }
+
+  /// Android sabitlemeyi kendi kısayoluyla kaldırdı: hemen yeniden sabitle ve
+  /// kilidi gerçekten açmak için ebeveyn şifresini iste.
+  Future<void> _onUnpinned() async {
+    _lastLockRequest = DateTime.now();
+    widget.kiosk.start();
+    final pin = widget.storage.parentPin;
+    final context = _navigator.currentContext;
+    if (_askingPin || pin == null || context == null) return;
+    _askingPin = true;
+    final ok = await PinDialog.verify(
+      context,
+      pin,
+      title: 'Kilidi açmak için ebeveyn şifresi',
+    );
+    _askingPin = false;
+    if (ok) {
+      _suspended = true;
+      await widget.kiosk.stop();
+    }
+  }
+
+  DateTime? _lastLockRequest;
+
   /// Çocuk kilidi açıksa uygulamayı ekrana sabitler.
-  void _applyChildLock() {
-    if (widget.storage.childLock) widget.kiosk.start();
+  ///
+  /// Uygulama açılınca ve arka plandan dönünce çağrılır. Android'in "Uygulama
+  /// sabitlensin mi?" sorusu uygulamayı bir anlığına duraklattığı için
+  /// sorudan dönüşte tekrar istenmez; aksi halde soru üst üste çıkıyordu.
+  Future<void> _applyChildLock() async {
+    if (!widget.storage.childLock || _suspended) return;
+    if (await widget.kiosk.isLocked()) return;
+    final now = DateTime.now();
+    final last = _lastLockRequest;
+    if (last != null && now.difference(last) < const Duration(seconds: 20)) {
+      return;
+    }
+    _lastLockRequest = now;
+    await widget.kiosk.start();
   }
 
   @override
   void dispose() {
+    _watch?.cancel();
     _lifecycle.dispose();
     widget.audio.pauseMusic();
     super.dispose();
@@ -106,14 +175,26 @@ class _BoyamaAppState extends State<BoyamaApp> {
     } else if (!await PinDialog.verify(context, pin)) {
       return;
     }
+    final fullLock = await widget.kiosk.isFullLock();
     if (!context.mounted) return;
     await showDialog<void>(
       context: context,
       builder: (_) => ParentPanel(
         childLock: widget.storage.childLock,
+        fullLock: fullLock,
+        onClearFullLock: () {
+          _suspended = true;
+          return widget.kiosk.clearFullLock();
+        },
         onChildLockChanged: (v) {
           widget.storage.childLock = v;
-          v ? widget.kiosk.start() : widget.kiosk.stop();
+          if (v) {
+            _suspended = false;
+            _lastLockRequest = DateTime.now();
+            widget.kiosk.start();
+          } else {
+            widget.kiosk.stop();
+          }
         },
         onChangePin: () async {
           final ctx = _navigator.currentContext!;
@@ -142,7 +223,10 @@ class _BoyamaAppState extends State<BoyamaApp> {
           setState(artworks.clear);
           widget.storage.deleteAll();
         },
-        onExit: widget.kiosk.exit,
+        onExit: () {
+          _suspended = true;
+          widget.kiosk.exit();
+        },
       ),
     );
   }

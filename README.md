@@ -30,6 +30,34 @@ Her gönderimde GitHub Actions uygulamayı test eder ve APK'yı derler. Repo say
 **Actions → son "APK derle" çalışması → Artifacts → boyama-kitabi-apk** yolundan indirip telefona kurabilirsiniz
 (telefonda "bilinmeyen kaynaklardan yükleme" izni gerekir).
 
+## Güncelleme
+
+Depoda `KEYSTORE_BASE64` ve `KEYSTORE_PASSWORD` adlı iki GitHub secret'ı varsa her APK aynı
+anahtarla imzalanır; sürüm numarası da her derlemede artar. Böylece yeni APK eskisinin
+üstüne kurulur, boyamalar ve ayarlar kalır. Secret yoksa APK geçici bir anahtarla imzalanır
+ve güncellemek için eskisini silmek gerekir.
+
+## Çocuk kilidi
+
+Ebeveyn panelinden "Çocuk kilidi" açılınca uygulama ekrana sabitlenir. Çocuk "Geri" ve
+"Son uygulamalar" tuşlarına basılı tutup sabitlemeyi kaldırırsa uygulama hemen yeniden
+sabitlenir ve kilidi açmak için ebeveyn şifresini sorar.
+
+Android normal sabitlemede "Uygulama sabitlensin mi?" sorusunu ve "Uygulama sabitlendi"
+uyarısını kendisi gösterir; bunu uygulamalar kapatamaz.
+
+### Tam kilit (uyarısız, isteğe bağlı)
+
+Telefonda hiç hesap (Google hesabı dahil) yokken, bilgisayardan bir kez:
+
+```
+adb shell dpm set-device-owner com.boyama.boyama_kitabi/.AdminReceiver
+```
+
+Bundan sonra sabitleme sorusuz ve uyarısız olur, Geri+Son uygulamalar kısayolu da çalışmaz;
+çıkış sadece ebeveyn panelinden şifreyle yapılır. Panelde "Tam kilit açık" düğmesiyle
+geri alınabilir.
+
 ## Geliştirme
 ```bash
 flutter pub get

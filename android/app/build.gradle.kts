@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -29,11 +31,29 @@ android {
         versionName = flutter.versionName
     }
 
+    // Her derleme aynı anahtarla imzalanır; böylece yeni sürüm eskisinin üstüne kurulur
+    // ve boyamalar silinmez. Anahtar GitHub secret'larından gelir (bkz. apk.yml).
+    val imza = Properties().apply {
+        val f = rootProject.file("imza.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+
+    signingConfigs {
+        create("sabit") {
+            storeFile = file(imza.getProperty("storeFile", "boyama-imza.jks"))
+            storePassword = imza.getProperty("storePassword")
+            keyAlias = imza.getProperty("keyAlias")
+            keyPassword = imza.getProperty("keyPassword")
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (imza.isEmpty) {
+                signingConfigs.getByName("debug")
+            } else {
+                signingConfigs.getByName("sabit")
+            }
         }
     }
 }
